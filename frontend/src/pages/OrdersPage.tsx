@@ -42,13 +42,6 @@ const SERVICE_LABELS: Record<string, string> = {
   other: '📦 Другое',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'В работе',
-  completed: 'Готово',
-  cancelled: 'Отменён',
-  deleted: 'Удалён',
-};
-
 export default function OrdersPage() {
   const [board, setBoard] = useState<OrdersBoard | null>(null);
   const [loading, setLoading] = useState(true);
