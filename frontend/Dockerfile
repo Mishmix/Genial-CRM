@@ -21,16 +21,15 @@ FROM nginx:alpine
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create nginx config that uses PORT env variable
+# Create nginx config template
 RUN echo 'server { \
-    listen 80; \
-    listen [::]:80; \
+    listen ${PORT:-80}; \
     root /usr/share/nginx/html; \
     index index.html; \
     location / { \
         try_files $uri $uri/ /index.html; \
     } \
-}' > /etc/nginx/conf.d/default.conf
+}' > /etc/nginx/templates/default.conf.template
 
 EXPOSE 80
 
