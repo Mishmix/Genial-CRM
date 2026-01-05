@@ -87,7 +87,7 @@ function connect() {
     globalWs.onclose = () => {
       console.log('[WS] Disconnected, reconnecting in 3s...');
       globalWs = null;
-      reconnectTimeout = setTimeout(connect, 3000);
+      _reconnectTimeout = setTimeout(connect, 3000);
     };
 
     globalWs.onerror = (error) => {
@@ -95,7 +95,7 @@ function connect() {
     };
   } catch (e) {
     console.error('[WS] Connection error:', e);
-    reconnectTimeout = setTimeout(connect, 3000);
+    _reconnectTimeout = setTimeout(connect, 3000);
   }
 }
 
