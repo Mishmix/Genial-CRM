@@ -99,13 +99,13 @@ async def auth_password(
     # Create session
     session_id = create_session(db, auth_type="password")
     
-    # Set cookie
+    # Set cookie - use secure=True and samesite=none for cross-domain (Railway)
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
         httponly=True,
-        secure=False,  # Allow HTTP for local dev
-        samesite="lax",
+        secure=True,  # Required for cross-domain
+        samesite="none",  # Required for cross-domain
         max_age=SESSION_EXPIRY_DAYS * 24 * 60 * 60,
     )
     
