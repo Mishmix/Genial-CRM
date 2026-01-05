@@ -15,6 +15,7 @@ from app.config import get_settings
 
 SESSION_COOKIE_NAME = "crm_session"
 SESSION_EXPIRY_DAYS = 7
+SESSION_EXPIRY_DAYS_REMEMBER = 90  # 3 months when "remember me" is checked
 
 
 def get_session_from_cookie(request: Request) -> Optional[str]:
@@ -27,10 +28,12 @@ def create_session(
     auth_type: str,
     telegram_user_id: Optional[int] = None,
     admin_id: Optional[int] = None,
+    remember_me: bool = True,
 ) -> str:
     """Create a new session."""
     session_id = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(days=SESSION_EXPIRY_DAYS)
+    expiry_days = SESSION_EXPIRY_DAYS_REMEMBER if remember_me else SESSION_EXPIRY_DAYS
+    expires_at = datetime.utcnow() + timedelta(days=expiry_days)
     
     session = SessionModel(
         session_id=session_id,
@@ -42,7 +45,7 @@ def create_session(
     db.add(session)
     db.commit()
     
-    return session_id
+    return session_id, expiry_days
 
 
 def get_valid_session(

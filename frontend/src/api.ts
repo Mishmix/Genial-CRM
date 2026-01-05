@@ -40,10 +40,10 @@ export async function authTelegram(initData: string) {
   });
 }
 
-export async function authPassword(password: string) {
+export async function authPassword(password: string, rememberMe: boolean = true) {
   return request<{ success: boolean }>('/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ password, remember_me: rememberMe }),
   });
 }
 

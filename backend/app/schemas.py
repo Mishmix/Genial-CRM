@@ -12,6 +12,7 @@ class TelegramAuthRequest(BaseModel):
 
 class PasswordAuthRequest(BaseModel):
     password: str = Field(..., min_length=1)
+    remember_me: bool = True
 
 
 class AuthResponse(BaseModel):

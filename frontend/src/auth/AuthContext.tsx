@@ -11,7 +11,7 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (password: string) => Promise<void>;
+  login: (password: string, rememberMe?: boolean) => Promise<void>;
   loginTelegram: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -72,10 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function login(password: string) {
+  async function login(password: string, rememberMe: boolean = true) {
     setState(s => ({ ...s, isLoading: true, error: null }));
     try {
-      await authPassword(password);
+      await authPassword(password, rememberMe);
       setState({
         isAuthenticated: true,
         isLoading: false,

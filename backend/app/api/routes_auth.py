@@ -54,11 +54,12 @@ async def auth_telegram(
         admin = create_admin(db, user_id, username)
     
     # Create session
-    session_id = create_session(
+    session_id, expiry_days = create_session(
         db,
         auth_type="telegram",
         telegram_user_id=user_id,
         admin_id=admin.id,
+        remember_me=True,  # Always remember for Telegram
     )
     
     # Set cookie
@@ -68,7 +69,7 @@ async def auth_telegram(
         httponly=True,
         secure=True,
         samesite="none",
-        max_age=SESSION_EXPIRY_DAYS * 24 * 60 * 60,
+        max_age=expiry_days * 24 * 60 * 60,
     )
     
     logger.info(f"Telegram auth successful for user {user_id}")
@@ -96,8 +97,8 @@ async def auth_password(
             detail="Invalid password",
         )
     
-    # Create session
-    session_id = create_session(db, auth_type="password")
+    # Create session with remember_me option
+    session_id, expiry_days = create_session(db, auth_type="password", remember_me=data.remember_me)
     
     # Set cookie - use secure=True and samesite=none for cross-domain (Railway)
     response.set_cookie(
@@ -106,10 +107,10 @@ async def auth_password(
         httponly=True,
         secure=True,  # Required for cross-domain
         samesite="none",  # Required for cross-domain
-        max_age=SESSION_EXPIRY_DAYS * 24 * 60 * 60,
+        max_age=expiry_days * 24 * 60 * 60,
     )
     
-    logger.info("Password auth successful")
+    logger.info(f"Password auth successful (remember_me={data.remember_me})")
     
     return AuthResponse(success=True, message="Logged in")
 
