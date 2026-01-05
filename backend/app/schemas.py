@@ -403,3 +403,7 @@ class ConversationDetailResponse(ConversationResponse):
 class ConversationListResponse(BaseModel):
     items: List[ConversationResponse]
     total: int
+
+
+# Rebuild models with forward references
+ClientDetail.model_rebuild()
