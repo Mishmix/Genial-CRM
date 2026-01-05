@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 
 type MessageHandler = (data: any) => void;
 
@@ -29,7 +29,7 @@ const WS_URL = getWsUrl();
 
 // Global WebSocket instance
 let globalWs: WebSocket | null = null;
-let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let _reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 const handlers = new Map<string, Set<MessageHandler>>();
 
 function connect() {

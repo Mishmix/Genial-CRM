@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getMe, authTelegram, authPassword, logout as apiLogout } from '../api';
 import { getInitData, isTelegramWebApp } from '../telegram/webapp';
 

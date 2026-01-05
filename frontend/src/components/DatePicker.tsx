@@ -122,7 +122,7 @@ export default function DatePicker({
 
   const formatDisplayDate = (dateStr: string) => {
     const datePart = dateStr.split('T')[0];
-    const [year, month, day] = datePart.split('-').map(Number);
+    const [_year, month, day] = datePart.split('-').map(Number);
     const monthName = MONTHS_RU[month - 1].toLowerCase();
     let result = `${day} ${monthName}`;
     if (showTime && dateStr.includes('T')) {

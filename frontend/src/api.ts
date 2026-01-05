@@ -232,7 +232,7 @@ export async function deleteTemplate(id: number) {
 
 // Settings
 export async function getSettings() {
-  return request<{ portfolio_url: string; auto_reply_enabled: boolean; social_proof: string }>('/settings');
+  return request<{ portfolio_url: string; auto_reply_enabled: boolean; social_proof: string; prompt_thumbnail_classification?: string }>('/settings');
 }
 
 export async function updateSetting(key: string, value: string) {
