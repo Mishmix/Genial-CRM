@@ -177,13 +177,47 @@ app = FastAPI(
 )
 
 # CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# In production, allow all railway.app origins dynamically
+if settings.is_production:
+    from fastapi.middleware.cors import CORSMiddleware as BaseCORSMiddleware
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import Response
+    
+    class DynamicCORSMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            origin = request.headers.get("origin", "")
+            response = await call_next(request)
+            
+            # Allow any railway.app origin or localhost
+            if origin and (origin.endswith(".railway.app") or "localhost" in origin):
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Allow-Methods"] = "*"
+                response.headers["Access-Control-Allow-Headers"] = "*"
+            
+            return response
+    
+    # Handle preflight requests
+    @app.options("/{rest_of_path:path}")
+    async def preflight_handler(rest_of_path: str, request: Request):
+        origin = request.headers.get("origin", "")
+        response = Response()
+        if origin and (origin.endswith(".railway.app") or "localhost" in origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+    
+    app.add_middleware(DynamicCORSMiddleware)
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Include API routes
 app.include_router(api_router, prefix="/api")

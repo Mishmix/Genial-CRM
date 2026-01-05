@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     admin_password_hash: str = ""
     
     # CORS
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,https://*.up.railway.app"
     
     # Database
     database_url: str = "sqlite:///./crm.db"
