@@ -176,6 +176,16 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Increase max request body size to 100MB for imports
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class LimitUploadSize(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        # Allow up to 100MB for import endpoints
+        return await call_next(request)
+
+app.add_middleware(LimitUploadSize)
+
 # CORS middleware - allow frontend origins
 # For Railway deployment, we need to allow the frontend domain
 cors_origins = [

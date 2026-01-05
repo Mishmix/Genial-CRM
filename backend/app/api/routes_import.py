@@ -322,7 +322,7 @@ async def import_telegram_export(
 
 @router.post("/telegram/sync")
 async def import_telegram_sync(
-    file: UploadFile = File(...),
+    file: UploadFile = File(..., max_length=100 * 1024 * 1024),  # 100MB limit
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):

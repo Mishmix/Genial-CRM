@@ -24,4 +24,5 @@ ENV PORT=8000
 EXPOSE 8000
 
 # Use shell form to expand $PORT variable
-CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Increase request body limit to 100MB for large imports
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --limit-concurrency 100 --timeout-keep-alive 120
