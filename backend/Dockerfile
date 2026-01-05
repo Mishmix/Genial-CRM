@@ -12,11 +12,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application
 COPY . .
 
-# Create data directory
+# Create data directory for SQLite (fallback)
 RUN mkdir -p /data
 
-# Environment
-ENV DATABASE_URL=sqlite:////data/crm.db
+# Environment - DATABASE_URL will be set by Railway
 ENV PYTHONUNBUFFERED=1
 
 # Railway uses PORT env variable
