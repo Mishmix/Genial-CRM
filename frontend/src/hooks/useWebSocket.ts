@@ -29,13 +29,22 @@ const WS_URL = getWsUrl();
 
 // Global WebSocket instance
 let globalWs: WebSocket | null = null;
-let _reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 const handlers = new Map<string, Set<MessageHandler>>();
+
+function clearReconnectTimeout() {
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+}
 
 function connect() {
   if (globalWs?.readyState === WebSocket.OPEN || globalWs?.readyState === WebSocket.CONNECTING) {
     return;
   }
+  
+  clearReconnectTimeout();
 
   try {
     globalWs = new WebSocket(WS_URL);
@@ -87,7 +96,7 @@ function connect() {
     globalWs.onclose = () => {
       console.log('[WS] Disconnected, reconnecting in 3s...');
       globalWs = null;
-      _reconnectTimeout = setTimeout(connect, 3000);
+      reconnectTimeout = setTimeout(connect, 3000);
     };
 
     globalWs.onerror = (error) => {
@@ -95,7 +104,7 @@ function connect() {
     };
   } catch (e) {
     console.error('[WS] Connection error:', e);
-    _reconnectTimeout = setTimeout(connect, 3000);
+    reconnectTimeout = setTimeout(connect, 3000);
   }
 }
 
