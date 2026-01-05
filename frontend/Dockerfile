@@ -7,11 +7,9 @@ RUN npm install
 
 COPY . .
 
-# Build with environment variables
-ARG VITE_API_URL
-ARG VITE_WS_URL
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_WS_URL=$VITE_WS_URL
+# Build with production API URL
+ENV VITE_API_URL=https://genial-crm-production.up.railway.app/api
+ENV VITE_WS_URL=wss://genial-crm-production.up.railway.app/ws
 
 RUN npm run build
 
