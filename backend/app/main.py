@@ -11,8 +11,16 @@ from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from telegram import Update
 from telegram.ext import (
-    Application, MessageHandler, filters, TypeHandler, BusinessConnectionHandler,
+    Application, MessageHandler, filters, TypeHandler,
 )
+
+# BusinessConnectionHandler may not be available in older versions
+try:
+    from telegram.ext import BusinessConnectionHandler
+    HAS_BUSINESS_CONNECTION = True
+except ImportError:
+    HAS_BUSINESS_CONNECTION = False
+    BusinessConnectionHandler = None
 
 from app.config import get_settings
 from app.db import init_db, SessionLocal
@@ -117,10 +125,11 @@ async def lifespan(app: FastAPI):
                 )
             )
             
-            # Add handler for business connection updates
-            telegram_app.add_handler(
-                BusinessConnectionHandler(handle_business_connection)
-            )
+            # Add handler for business connection updates (if available)
+            if HAS_BUSINESS_CONNECTION and BusinessConnectionHandler:
+                telegram_app.add_handler(
+                    BusinessConnectionHandler(handle_business_connection)
+                )
             
             await telegram_app.initialize()
             
