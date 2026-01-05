@@ -621,7 +621,9 @@ export async function importTelegramExport(file: File) {
   const formData = new FormData();
   formData.append('file', file);
   
-  const response = await fetch('/api/import/telegram/sync', {
+  const url = `${API_BASE}/import/telegram/sync`;
+  
+  const response = await fetch(url, {
     method: 'POST',
     credentials: 'include',
     body: formData,
