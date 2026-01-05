@@ -15,7 +15,7 @@ ENV VITE_WS_URL=$VITE_WS_URL
 
 RUN npm run build
 
-# Production image - use serve instead of nginx for simplicity
+# Production image
 FROM node:20-alpine
 
 WORKDIR /app
@@ -24,7 +24,7 @@ RUN npm install -g serve
 
 COPY --from=builder /app/dist ./dist
 
-ENV PORT=3000
 EXPOSE 3000
 
-CMD ["serve", "-s", "dist", "-l", "3000"]
+# Use explicit port number, Railway will map it
+CMD ["serve", "-s", "dist", "-p", "3000"]
