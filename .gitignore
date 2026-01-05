@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Environment files (keep examples)
+.env
+.env.local
+!.env.example
+!.env.railway
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Backups (keep locally, don't push)
+backups/
+
+# Avatars cache
+avatars/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/

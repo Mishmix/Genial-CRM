@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: crm-bot-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite:////data/crm.db
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - PORTFOLIO_URL=${PORTFOLIO_URL:-https://example.com/portfolio}
+      - AUTO_REPLY_ENABLED=${AUTO_REPLY_ENABLED:-true}
+      - ADMIN_TELEGRAM_IDS=${ADMIN_TELEGRAM_IDS}
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost}
+      - SESSION_SECRET=${SESSION_SECRET:-change_this_to_random_secret}
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - ENV=${ENV:-production}
+    volumes:
+      - crm-data:/data
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: crm-bot-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  crm-data:
