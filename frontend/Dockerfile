@@ -15,16 +15,23 @@ ENV VITE_WS_URL=$VITE_WS_URL
 
 RUN npm run build
 
-# Production image
-FROM node:20-alpine
+# Production image with nginx
+FROM nginx:alpine
 
-WORKDIR /app
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-RUN npm install -g serve
+# Create nginx config that uses PORT env variable
+RUN echo 'server { \
+    listen 80; \
+    listen [::]:80; \
+    root /usr/share/nginx/html; \
+    index index.html; \
+    location / { \
+        try_files $uri $uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
 
-COPY --from=builder /app/dist ./dist
+EXPOSE 80
 
-EXPOSE 3000
-
-# Use explicit port number, Railway will map it
-CMD ["serve", "-s", "dist", "-p", "3000"]
+CMD ["nginx", "-g", "daemon off;"]
