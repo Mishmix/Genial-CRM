@@ -113,8 +113,6 @@ export default function ConversationsPage() {
     return formatRelativeTime(dateStr);
   };
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
   const getStatusBadge = (status: string) => {
     const opt = STATUS_OPTIONS.find(s => s.value === status);
     return opt ? `${opt.icon} ${opt.label}` : status;

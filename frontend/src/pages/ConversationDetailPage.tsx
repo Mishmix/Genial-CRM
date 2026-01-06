@@ -316,8 +316,6 @@ export default function ConversationDetailPage() {
     });
   };
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
   // Only count active orders (exclude cancelled and deleted)
   const activeOrders = orders.filter(o => o.status !== 'cancelled' && o.status !== 'deleted');
   const totalOrdersAmount = activeOrders.reduce((sum, o) => sum + (o.amount || 0), 0) / 100;

@@ -146,8 +146,6 @@ export default function OrdersPage() {
     return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   };
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
   // Group later orders by date
   const groupByDate = (orders: BoardOrder[]) => {
     const groups: Record<string, BoardOrder[]> = {};

@@ -4,7 +4,6 @@ import {
   getClient, updateClient, markClientRead, sendMessage, getTemplates, getTags, 
   archiveClient, unarchiveClient, deleteClient, createReminder, completeReminder, deleteReminder,
   createOrder, updateOrder, deleteOrder, getOrders, getRejectionReasons, getOrderStats, mergeClients, searchClients,
-  fetchClientAvatar,
   ClientDetail, Template, Tag, Order, RejectionReason, Client
 } from '../api';
 import PageWrapper from '../components/PageWrapper';
@@ -432,7 +431,6 @@ export default function ClientDetailPage() {
     if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
     return date.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric', year: 'numeric' });
   };
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   if (loading) {
     return (
