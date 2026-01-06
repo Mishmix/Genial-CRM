@@ -1,5 +1,6 @@
 FROM node:20-alpine AS builder
 
+# Force rebuild v2 - timezone fix
 WORKDIR /app
 
 COPY package*.json ./
