@@ -44,7 +44,11 @@ export default function Timeline({ orders, messages, className = '' }: TimelineP
       date: m.sent_at,
       data: m,
     })),
-  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  ].sort((a, b) => {
+    const dateA = a.date.endsWith('Z') ? new Date(a.date) : new Date(a.date + 'Z');
+    const dateB = b.date.endsWith('Z') ? new Date(b.date) : new Date(b.date + 'Z');
+    return dateB.getTime() - dateA.getTime();
+  });
 
   const formatDate = (dateStr: string) => {
     // Parse as UTC (backend returns UTC without Z suffix)
