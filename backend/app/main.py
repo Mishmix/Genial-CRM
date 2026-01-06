@@ -93,6 +93,15 @@ async def lifespan(app: FastAPI):
     init_db()
     logger.info("Database initialized")
     
+    # Load settings from database into environment
+    from app.config import load_settings_from_db, clear_settings_cache
+    load_settings_from_db()
+    clear_settings_cache()
+    
+    # Reload settings after loading from DB
+    global settings
+    settings = get_settings()
+    
     # Seed database with defaults
     db = SessionLocal()
     try:

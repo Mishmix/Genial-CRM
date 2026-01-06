@@ -2,6 +2,7 @@
 from functools import lru_cache
 from typing import List, Optional
 from pydantic_settings import BaseSettings
+import os
 
 
 class Settings(BaseSettings):
@@ -78,3 +79,34 @@ def get_settings() -> Settings:
 def clear_settings_cache():
     """Clear the settings cache to reload from .env file."""
     get_settings.cache_clear()
+
+
+def load_settings_from_db():
+    """Load API keys from database into environment variables at startup."""
+    try:
+        from app.db import SessionLocal
+        from app.models import Setting
+        
+        db = SessionLocal()
+        try:
+            # Keys to load from DB
+            db_keys = {
+                "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
+                "groq_api_key": "GROQ_API_KEY",
+                "mini_app_url": "MINI_APP_URL",
+                "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
+            }
+            
+            for db_key, env_key in db_keys.items():
+                setting = db.query(Setting).filter(Setting.key == db_key).first()
+                if setting and setting.value:
+                    os.environ[env_key] = setting.value
+                    print(f"[CONFIG] Loaded {db_key} from database")
+            
+            # Clear cache to reload with new env vars
+            clear_settings_cache()
+            
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[CONFIG] Failed to load settings from DB: {e}")

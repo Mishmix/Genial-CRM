@@ -4,57 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.crud import get_all_settings, set_setting, get_admins
+from app.crud import get_all_settings, set_setting, get_admins, get_setting
 from app.schemas import SettingUpdate, AdminResponse
 from app.api.deps import get_current_user
 from app.config import get_settings as get_app_settings
 
 router = APIRouter()
-
-# Path to .env file
-ENV_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env")
-
-
-def read_env_file():
-    """Read .env file as dict."""
-    env_vars = {}
-    if os.path.exists(ENV_FILE_PATH):
-        with open(ENV_FILE_PATH, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
-                    env_vars[key.strip()] = value.strip()
-    return env_vars
-
-
-def write_env_file(env_vars: dict):
-    """Write dict to .env file, preserving comments."""
-    lines = []
-    existing_keys = set()
-    
-    # Read existing file to preserve comments and order
-    if os.path.exists(ENV_FILE_PATH):
-        with open(ENV_FILE_PATH, 'r') as f:
-            for line in f:
-                stripped = line.strip()
-                if stripped.startswith('#') or not stripped:
-                    lines.append(line.rstrip())
-                elif '=' in stripped:
-                    key = stripped.split('=', 1)[0].strip()
-                    existing_keys.add(key)
-                    if key in env_vars:
-                        lines.append(f"{key}={env_vars[key]}")
-                    else:
-                        lines.append(line.rstrip())
-    
-    # Add new keys that weren't in file
-    for key, value in env_vars.items():
-        if key not in existing_keys:
-            lines.append(f"{key}={value}")
-    
-    with open(ENV_FILE_PATH, 'w') as f:
-        f.write('\n'.join(lines) + '\n')
 
 
 @router.get("")
@@ -65,7 +20,6 @@ async def get_settings(
     """Get all settings including API keys (masked)."""
     db_settings = get_all_settings(db)
     app_settings = get_app_settings()
-    env_vars = read_env_file()
     
     # Mask API keys for display
     def mask_key(key: str) -> str:
@@ -73,17 +27,23 @@ async def get_settings(
             return ""
         return key[:4] + "..." + key[-4:]
     
+    # Get API keys from DB (with fallback to env vars for migration)
+    telegram_token = db_settings.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    groq_key = db_settings.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
+    mini_app_url = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
+    admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
+    
     return {
         "portfolio_url": db_settings.get("portfolio_url", app_settings.portfolio_url),
         "auto_reply_enabled": db_settings.get("auto_reply_enabled", "true") == "true",
         "social_proof": db_settings.get("social_proof", ""),
         # API Keys (masked)
-        "telegram_bot_token": mask_key(env_vars.get("TELEGRAM_BOT_TOKEN", "")),
-        "telegram_bot_token_set": bool(env_vars.get("TELEGRAM_BOT_TOKEN", "")),
-        "groq_api_key": mask_key(env_vars.get("GROQ_API_KEY", "")),
-        "groq_api_key_set": bool(env_vars.get("GROQ_API_KEY", "")),
-        "mini_app_url": env_vars.get("MINI_APP_URL", ""),
-        "admin_telegram_ids": env_vars.get("ADMIN_TELEGRAM_IDS", ""),
+        "telegram_bot_token": mask_key(telegram_token),
+        "telegram_bot_token_set": bool(telegram_token),
+        "groq_api_key": mask_key(groq_key),
+        "groq_api_key_set": bool(groq_key),
+        "mini_app_url": mini_app_url,
+        "admin_telegram_ids": admin_ids,
         # Prompts from DB
         "prompt_thumbnail_classification": db_settings.get("prompt_thumbnail_classification", ""),
         "prompt_auto_reply": db_settings.get("prompt_auto_reply", ""),
@@ -96,34 +56,26 @@ async def update_setting(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Update a setting (DB or .env file)."""
+    """Update a setting in database."""
     
-    # Keys that go to .env file
-    env_keys = {
+    # All settings now go to DB
+    set_setting(db, data.key, data.value)
+    
+    # For API keys, also update environment variable for current process
+    env_mapping = {
         "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
         "groq_api_key": "GROQ_API_KEY",
         "mini_app_url": "MINI_APP_URL",
         "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
     }
     
-    if data.key in env_keys:
-        # Update .env file
-        env_vars = read_env_file()
-        env_vars[env_keys[data.key]] = data.value
-        write_env_file(env_vars)
-        
-        # Also update environment variable for current process
-        os.environ[env_keys[data.key]] = data.value
-        
+    if data.key in env_mapping:
+        os.environ[env_mapping[data.key]] = data.value
         # Clear settings cache to reload
         from app.config import get_settings
         get_settings.cache_clear()
-        
-        return {"success": True, "key": data.key, "requires_restart": data.key == "telegram_bot_token"}
-    else:
-        # Update DB setting
-        set_setting(db, data.key, data.value)
-        return {"success": True, "key": data.key}
+    
+    return {"success": True, "key": data.key, "requires_restart": data.key == "telegram_bot_token"}
 
 
 @router.post("/restart-bot")
@@ -153,18 +105,23 @@ async def list_admins(
 
 @router.get("/bot-status")
 async def get_bot_status(
+    db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Get Telegram bot connection status."""
-    env_vars = read_env_file()
-    token = env_vars.get("TELEGRAM_BOT_TOKEN", "")
-    groq_key = env_vars.get("GROQ_API_KEY", "")
+    db_settings = get_all_settings(db)
+    
+    # Get from DB with fallback to env vars
+    token = db_settings.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    groq_key = db_settings.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
+    mini_app = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
+    admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
     
     return {
         "bot_configured": bool(token),
         "groq_configured": bool(groq_key),
-        "mini_app_configured": bool(env_vars.get("MINI_APP_URL", "")),
-        "admin_configured": bool(env_vars.get("ADMIN_TELEGRAM_IDS", "")),
+        "mini_app_configured": bool(mini_app),
+        "admin_configured": bool(admin_ids),
     }
 
 
