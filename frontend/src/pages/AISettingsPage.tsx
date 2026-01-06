@@ -143,18 +143,6 @@ export default function AISettingsPage() {
             </div>
 
             <div className="grid grid-cols-3 gap-4 mb-4">
-              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
-                <div className="font-semibold text-blue-400 mb-2 flex items-center gap-2">
-                  <span>📧</span> "email_lead" → Mini App
-                </div>
-                <ul className="text-sm text-[var(--text-secondary)] space-y-1">
-                  <li>• "Вы мне писали на почту"</li>
-                  <li>• "Пишу с рассылки"</li>
-                  <li>• "Получил ваше письмо"</li>
-                  <li>• "Увидел предложение"</li>
-                </ul>
-              </div>
-              
               <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
                 <div className="font-semibold text-emerald-400 mb-2 flex items-center gap-2">
                   <span>✅</span> "thumbnail" → Mini App
@@ -164,6 +152,18 @@ export default function AISettingsPage() {
                   <li>• "Need YouTube thumbnail"</li>
                   <li>• "обкладинка для відео"</li>
                   <li>• "шапка и превью"</li>
+                </ul>
+              </div>
+              
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
+                <div className="font-semibold text-red-400 mb-2 flex items-center gap-2">
+                  <span>🚫</span> "email_lead" → Игнор
+                </div>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-1">
+                  <li>• "Вы мне писали на почту"</li>
+                  <li>• "Пишу с рассылки"</li>
+                  <li>• "Получил ваше письмо"</li>
+                  <li>• "Увидел предложение"</li>
                 </ul>
               </div>
               

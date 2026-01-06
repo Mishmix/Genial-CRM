@@ -399,7 +399,7 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         category = await classify_thumbnail(buffer)
         log_print(f"Classification result: {category}")
         
-        if category in ("thumbnail", "email_lead"):
+        if category == "thumbnail":
             # Detect language from message buffer
             detected_lang = detect_language_from_messages(buffer)
             log_print(f"Detected language from messages: {detected_lang}")
@@ -411,6 +411,11 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             )
             
             # Update conversation category
+            conversation.category = category
+            db.commit()
+        elif category == "email_lead":
+            # Email leads are ignored - no Mini App, just mark category
+            log_print(f"Client {client.id} classified as 'email_lead' - ignoring (no Mini App)")
             conversation.category = category
             db.commit()
         else:
