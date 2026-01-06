@@ -29,6 +29,12 @@ async def get_board(
     from app.models import Order
     from datetime import datetime
     
+    # Debug: log all orders
+    all_orders = db.query(Order).all()
+    logger.info(f"[BOARD DEBUG] Total orders in DB: {len(all_orders)}")
+    for o in all_orders:
+        logger.info(f"[BOARD DEBUG] Order {o.id}: status={o.status}, service={o.service_type}, deadline={o.deadline_date}")
+    
     # Автоматическая синхронизация с Todoist
     try:
         api_token = get_setting(db, "todoist_api_token")
