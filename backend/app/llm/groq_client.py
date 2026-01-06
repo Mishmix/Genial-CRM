@@ -15,24 +15,56 @@ TIMEOUT = 60.0
 MAX_RETRIES = 2
 
 # System prompt for thumbnail classification
-THUMBNAIL_CLASSIFICATION_PROMPT = """Ты — строгий классификатор входящих сообщений клиента для дизайнера YouTube-обложек.
-Твоя задача: по сообщениям клиента определить категорию.
+THUMBNAIL_CLASSIFICATION_PROMPT = """Ты — строгий классификатор входящих сообщений для дизайнера YouTube-обложек.
+Задача: определить категорию сообщения клиента.
 
-Правила:
-- Верни {"category":"thumbnail"} ТОЛЬКО если клиент явно просит YouTube-обложку/превью/thumbnail/миниатюру (на любом языке), даже если также упоминаются баннеры/шапки/оформление.
-- Во всех остальных случаях верни {"category":"other"} (приветствия, общие вопросы, баннер без превью, неопределённость).
+## Категории (в порядке приоритета проверки)
 
-Примеры "thumbnail":
-- "превью", "превʼю", "прев'ю", "thumbnail", "обложка для видео", "обложка на ютуб", "миниатюра", "превьюшка"
-- "обкладинка для відео", "обкладинка на ютуб", "мініатюра"
-- "шапка и превью" (есть превью = thumbnail)
+### 1. "email_lead" - пришёл с рассылки/почты
+Маркеры:
+- "вы мне писали", "ви мені писали"
+- "пишу с рассылки", "пишу з розсилки"
+- "получил ваше письмо", "отримав ваш лист"
+- "по поводу вашего письма", "щодо вашого листа"
+- "с почты", "з пошти", "email", "e-mail", "імейл"
+- "увидел ваше предложение", "побачив вашу пропозицію"
+- "откликаюсь на ваше сообщение"
+- "вы писали на почту", "писали мені на пошту"
+- "из рассылки", "з розсилки"
+- упоминание что где-то видел/получил сообщение от дизайнера
+→ Ответ: {"category":"email_lead"}
 
-Примеры "other":
-- "Привет", "Добрый день", "вы дизайнер?"
-- "нужен баннер", "шапка для канала", "оформление" (без превью)
+### 2. "thumbnail" - явный запрос на превью
+Маркеры:
+- "превью", "превʼю", "прев'ю", "превьюшка"
+- "thumbnail", "миниатюра", "мініатюра"
+- "обложка для видео", "обложка на ютуб"
+- "обкладинка для відео", "обкладинка на ютуб"
+- "шапка и превью", "баннер и превью" (есть превью = thumbnail)
+ВАЖНО: Если есть маркеры email_lead + thumbnail → всё равно "email_lead"
+→ Ответ: {"category":"thumbnail"}
 
-ВАЖНО: Ответь ТОЛЬКО JSON без пояснений:
-{"category":"thumbnail"} или {"category":"other"}"""
+### 3. "other" - всё остальное
+- Приветствия без контекста: "Привет", "Добрый день"
+- Общие вопросы: "вы дизайнер?", "какие цены?"
+- Только баннер/шапка/оформление (без превью)
+- Неопределённые запросы
+→ Ответ: {"category":"other"}
+
+## Примеры
+"Здравствуйте, вы мне писали на почту по поводу обложек" → {"category":"email_lead"}
+"Привет, пишу с рассылки, интересует цена на превью" → {"category":"email_lead"}
+"Получил ваше письмо, нужны обложки" → {"category":"email_lead"}
+"Привет, нужно превью для видео" → {"category":"thumbnail"}
+"Обложка на ютуб сколько стоит?" → {"category":"thumbnail"}
+"Добрый день" → {"category":"other"}
+"Нужен баннер для канала" → {"category":"other"}
+
+## Правила
+1. СНАЧАЛА проверяй маркеры email_lead (приоритет!)
+2. Потом проверяй маркеры thumbnail
+3. Всё остальное = other
+4. Ответ: СТРОГО JSON, один из трёх вариантов"""
 
 
 async def chat_completion(
@@ -136,7 +168,7 @@ async def classify_thumbnail(buffer_messages: List[str]) -> Optional[str]:
             if json_match:
                 data = json.loads(json_match.group(0))
                 category = data.get("category", "").lower()
-                if category in ("thumbnail", "other"):
+                if category in ("thumbnail", "email_lead", "other"):
                     logger.info(f"Classification result: {category}")
                     return category
         except json.JSONDecodeError:
@@ -144,6 +176,8 @@ async def classify_thumbnail(buffer_messages: List[str]) -> Optional[str]:
         
         # Fallback: check for keywords
         result_lower = result.lower()
+        if '"email_lead"' in result_lower or "'email_lead'" in result_lower:
+            return "email_lead"
         if '"thumbnail"' in result_lower or "'thumbnail'" in result_lower:
             return "thumbnail"
         if '"other"' in result_lower or "'other'" in result_lower:
