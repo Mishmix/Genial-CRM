@@ -3,24 +3,56 @@ import { getSettings, updateSetting } from '../api';
 import PageWrapper from '../components/PageWrapper';
 
 const DEFAULT_PROMPTS = {
-  thumbnail_classification: `Ты — строгий классификатор входящих сообщений клиента для дизайнера YouTube-обложек.
-Твоя задача: по сообщениям клиента определить категорию.
+  thumbnail_classification: `Ты — строгий классификатор входящих сообщений для дизайнера YouTube-обложек.
+Задача: определить категорию сообщения клиента.
 
-Правила:
-- Верни {"category":"thumbnail"} ТОЛЬКО если клиент явно просит YouTube-обложку/превью/thumbnail/миниатюру (на любом языке), даже если также упоминаются баннеры/шапки/оформление.
-- Во всех остальных случаях верни {"category":"other"} (приветствия, общие вопросы, баннер без превью, неопределённость).
+## Категории (в порядке приоритета проверки)
 
-Примеры "thumbnail":
-- "превью", "превʼю", "прев'ю", "thumbnail", "обложка для видео", "обложка на ютуб", "миниатюра", "превьюшка"
-- "обкладинка для відео", "обкладинка на ютуб", "мініатюра"
-- "шапка и превью" (есть превью = thumbnail)
+### 1. "email_lead" - пришёл с рассылки/почты
+Маркеры:
+- "вы мне писали", "ви мені писали"
+- "пишу с рассылки", "пишу з розсилки"
+- "получил ваше письмо", "отримав ваш лист"
+- "по поводу вашего письма", "щодо вашого листа"
+- "с почты", "з пошти", "email", "e-mail", "імейл"
+- "увидел ваше предложение", "побачив вашу пропозицію"
+- "откликаюсь на ваше сообщение"
+- "вы писали на почту", "писали мені на пошту"
+- "из рассылки", "з розсилки"
+- упоминание что где-то видел/получил сообщение от дизайнера
+→ Ответ: {"category":"email_lead"}
 
-Примеры "other":
-- "Привет", "Добрый день", "вы дизайнер?"
-- "нужен баннер", "шапка для канала", "оформление" (без превью)
+### 2. "thumbnail" - явный запрос на превью
+Маркеры:
+- "превью", "превʼю", "прев'ю", "превьюшка"
+- "thumbnail", "миниатюра", "мініатюра"
+- "обложка для видео", "обложка на ютуб"
+- "обкладинка для відео", "обкладинка на ютуб"
+- "шапка и превью", "баннер и превью" (есть превью = thumbnail)
+ВАЖНО: Если есть маркеры email_lead + thumbnail → всё равно "email_lead"
+→ Ответ: {"category":"thumbnail"}
 
-Ответ: СТРОГО JSON и только один из двух вариантов:
-{"category":"thumbnail"} или {"category":"other"}`,
+### 3. "other" - всё остальное
+- Приветствия без контекста: "Привет", "Добрый день"
+- Общие вопросы: "вы дизайнер?", "какие цены?"
+- Только баннер/шапка/оформление (без превью)
+- Неопределённые запросы
+→ Ответ: {"category":"other"}
+
+## Примеры
+"Здравствуйте, вы мне писали на почту по поводу обложек" → {"category":"email_lead"}
+"Привет, пишу с рассылки, интересует цена на превью" → {"category":"email_lead"}
+"Получил ваше письмо, нужны обложки" → {"category":"email_lead"}
+"Привет, нужно превью для видео" → {"category":"thumbnail"}
+"Обложка на ютуб сколько стоит?" → {"category":"thumbnail"}
+"Добрый день" → {"category":"other"}
+"Нужен баннер для канала" → {"category":"other"}
+
+## Правила
+1. СНАЧАЛА проверяй маркеры email_lead (приоритет!)
+2. Потом проверяй маркеры thumbnail
+3. Всё остальное = other
+4. Ответ: СТРОГО JSON, один из трёх вариантов`,
 };
 
 export default function AISettingsPage() {
@@ -110,10 +142,22 @@ export default function AISettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
+                <div className="font-semibold text-blue-400 mb-2 flex items-center gap-2">
+                  <span>📧</span> "email_lead" → Mini App
+                </div>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-1">
+                  <li>• "Вы мне писали на почту"</li>
+                  <li>• "Пишу с рассылки"</li>
+                  <li>• "Получил ваше письмо"</li>
+                  <li>• "Увидел предложение"</li>
+                </ul>
+              </div>
+              
               <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
                 <div className="font-semibold text-emerald-400 mb-2 flex items-center gap-2">
-                  <span>✅</span> "thumbnail" → Отправить Mini App
+                  <span>✅</span> "thumbnail" → Mini App
                 </div>
                 <ul className="text-sm text-[var(--text-secondary)] space-y-1">
                   <li>• "Сколько стоит превью?"</li>
@@ -168,7 +212,7 @@ export default function AISettingsPage() {
             
             <div className="flex items-center justify-between">
               <p className="text-xs text-[var(--text-muted)]">
-                Должен возвращать: <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-emerald-400">{`{"category":"thumbnail"}`}</code> или <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-amber-400">{`{"category":"other"}`}</code>
+                Должен возвращать: <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-blue-400">{`{"category":"email_lead"}`}</code>, <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-emerald-400">{`{"category":"thumbnail"}`}</code> или <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-amber-400">{`{"category":"other"}`}</code>
               </p>
               <button 
                 onClick={() => handleSave('prompt_thumbnail_classification', settings.prompt_thumbnail_classification)} 

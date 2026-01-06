@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';;
 import { useNavigate } from 'react-router-dom';
 import { getClients, searchClients, createManualClient, fetchClientAvatar, getClientsStats, Client } from '../api';
 import PageWrapper from '../components/PageWrapper';
@@ -121,7 +121,9 @@ export default function ClientsPage() {
 
   const formatDate = (d: string | null) => {
     if (!d) return '—';
-    const date = new Date(d), now = new Date(), diff = now.getTime() - date.getTime();
+    const date = new Date(d);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
     if (diff < 60000) return 'сейчас';
     if (diff < 3600000) return Math.floor(diff / 60000) + ' мин';
     if (diff < 86400000) return Math.floor(diff / 3600000) + ' ч';
