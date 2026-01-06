@@ -11,6 +11,7 @@ from app.models import Session as SessionModel, Admin
 from app.crud import get_admin_by_telegram_id, get_admins
 from app.auth.telegram_initdata import is_admin_user
 from app.config import get_settings
+from app.utils.timezone import now_georgia
 
 
 SESSION_COOKIE_NAME = "crm_session"
@@ -33,7 +34,7 @@ def create_session(
     """Create a new session."""
     session_id = secrets.token_urlsafe(32)
     expiry_days = SESSION_EXPIRY_DAYS_REMEMBER if remember_me else SESSION_EXPIRY_DAYS
-    expires_at = datetime.utcnow() + timedelta(days=expiry_days)
+    expires_at = now_georgia() + timedelta(days=expiry_days)
     
     session = SessionModel(
         session_id=session_id,
@@ -59,7 +60,7 @@ def get_valid_session(
         .first()
     )
     
-    if session and session.expires_at > datetime.utcnow():
+    if session and session.expires_at > now_georgia():
         return session
     
     return None

@@ -133,19 +133,15 @@ export default function OrdersPage() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Без дедлайна';
-    // Parse as UTC (backend returns UTC without Z suffix)
-    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
-    const now = new Date();
-    const todayStr = now.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' });
-    const tomorrow = new Date(now);
+    const date = new Date(dateStr);
+    const today = new Date();
+    const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' });
-    const dateStr2 = date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' });
     
-    if (dateStr2 === todayStr) return 'Сегодня';
-    if (dateStr2 === tomorrowStr) return 'Завтра';
+    if (date.toDateString() === today.toDateString()) return 'Сегодня';
+    if (date.toDateString() === tomorrow.toDateString()) return 'Завтра';
     
-    return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   };
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);

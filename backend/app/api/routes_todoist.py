@@ -8,6 +8,7 @@ from app.db import get_db
 from app.crud import get_setting, set_setting
 from app.api.deps import get_current_user
 from app.integrations.todoist import TodoistClient, get_project_sections
+from app.utils.timezone import now_georgia
 
 router = APIRouter()
 
@@ -184,7 +185,7 @@ async def sync_completed_tasks(
         # Если задачи нет в активных - значит она выполнена
         if order.todoist_task_id not in active_task_ids:
             order.status = "completed"
-            order.completed_at = datetime.utcnow()
+            order.completed_at = now_georgia()
             completed_count += 1
     
     db.commit()

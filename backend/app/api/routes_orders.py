@@ -13,6 +13,7 @@ from app.crud import (
 from app.schemas import OrderCreate, OrderUpdate, OrderResponse, RejectionReasonResponse, OrderBoardResponse
 from app.api.deps import get_current_user
 from app.integrations.todoist import create_task_from_order
+from app.utils.timezone import now_georgia
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,7 +49,7 @@ async def get_board(
                 # Если задачи нет в активных - значит она выполнена
                 if order.todoist_task_id not in active_task_ids:
                     order.status = "completed"
-                    order.completed_at = datetime.utcnow()
+                    order.completed_at = now_georgia()
                     logger.info(f"Auto-completed order {order.id} from Todoist sync")
             
             db.commit()

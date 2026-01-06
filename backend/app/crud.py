@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models import Client, Message, Tag, Template, Setting, Admin, Reminder, Order, RejectionReason
 from app.schemas import ClientCreate, ClientUpdate, TemplateCreate, TemplateUpdate, ReminderCreate, ReminderUpdate, OrderCreate, OrderUpdate
 from app.search.normalize import normalize_text, generate_search_variants
+from app.utils.timezone import now_georgia
 
 
 # ============ Clients ============
@@ -79,10 +80,10 @@ def upsert_client(db: Session, data: ClientCreate) -> Client:
         client.language_code = data.language_code
         if data.business_connection_id:
             client.business_connection_id = data.business_connection_id
-        client.updated_at = datetime.utcnow()
+        client.updated_at = now_georgia()
     else:
         # Create new
-        now = datetime.utcnow()
+        now = now_georgia()
         client = Client(
             telegram_user_id=data.telegram_user_id,
             username=data.username,
@@ -115,13 +116,13 @@ def update_client(db: Session, client_id: int, data: ClientUpdate) -> Optional[C
         client.tags = tags
     if data.is_archived is not None:
         client.is_archived = data.is_archived
-        client.archived_at = datetime.utcnow() if data.is_archived else None
+        client.archived_at = now_georgia() if data.is_archived else None
     if data.lost_reason is not None:
         client.lost_reason = data.lost_reason
     if data.deadline is not None:
         client.deadline = data.deadline
     
-    client.updated_at = datetime.utcnow()
+    client.updated_at = now_georgia()
     db.commit()
     db.refresh(client)
     return client
@@ -132,7 +133,7 @@ def archive_client(db: Session, client_id: int) -> Optional[Client]:
     client = db.query(Client).filter(Client.id == client_id).first()
     if client:
         client.is_archived = True
-        client.archived_at = datetime.utcnow()
+        client.archived_at = now_georgia()
         db.commit()
         db.refresh(client)
     return client
@@ -200,7 +201,7 @@ def merge_clients(db: Session, source_ids: List[int], target_id: int) -> Optiona
         db.delete(source)
     
     target.merged_from = json.dumps(merged_ids)
-    target.updated_at = datetime.utcnow()
+    target.updated_at = now_georgia()
     db.commit()
     db.refresh(target)
     return target
@@ -221,7 +222,7 @@ def create_manual_client(
     # Generate a fake telegram_user_id for manual clients (negative to distinguish)
     fake_id = -random.randint(100000000, 999999999)
     
-    now = datetime.utcnow()
+    now = now_georgia()
     client = Client(
         telegram_user_id=fake_id,
         username=username,
@@ -285,14 +286,14 @@ def create_message(
         direction=direction,
         text=text,
         telegram_message_id=telegram_message_id,
-        sent_at=datetime.utcnow(),
+        sent_at=now_georgia(),
     )
     db.add(message)
     
     # Update client
     client = db.query(Client).filter(Client.id == client_id).first()
     if client:
-        client.last_message_at = datetime.utcnow()
+        client.last_message_at = now_georgia()
         if direction == "in":
             client.unread_count = (client.unread_count or 0) + 1
     
@@ -419,7 +420,7 @@ def set_setting(db: Session, key: str, value: str) -> Setting:
     setting = db.query(Setting).filter(Setting.key == key).first()
     if setting:
         setting.value = value
-        setting.updated_at = datetime.utcnow()
+        setting.updated_at = now_georgia()
     else:
         setting = Setting(key=key, value=value)
         db.add(setting)
@@ -481,7 +482,7 @@ def get_reminders(
 
 def get_pending_reminders(db: Session) -> List[Reminder]:
     """Get all pending reminders that are due."""
-    now = datetime.utcnow()
+    now = now_georgia()
     return (
         db.query(Reminder)
         .filter(Reminder.is_completed == False, Reminder.remind_at <= now)
@@ -517,7 +518,7 @@ def update_reminder(db: Session, reminder_id: int, data: ReminderUpdate) -> Opti
     if data.is_completed is not None:
         reminder.is_completed = data.is_completed
         if data.is_completed:
-            reminder.completed_at = datetime.utcnow()
+            reminder.completed_at = now_georgia()
     
     db.commit()
     db.refresh(reminder)
@@ -529,7 +530,7 @@ def complete_reminder(db: Session, reminder_id: int) -> Optional[Reminder]:
     reminder = db.query(Reminder).filter(Reminder.id == reminder_id).first()
     if reminder:
         reminder.is_completed = True
-        reminder.completed_at = datetime.utcnow()
+        reminder.completed_at = now_georgia()
         db.commit()
         db.refresh(reminder)
     return reminder
@@ -586,7 +587,7 @@ def create_order(db: Session, data: OrderCreate) -> Order:
     if data.deadline_type == "exact" and data.deadline_date:
         deadline_calculated = data.deadline_date
     elif data.deadline_type == "flexible" and data.deadline_range:
-        now = datetime.utcnow()
+        now = now_georgia()
         if data.deadline_range == "today":
             deadline_calculated = now.replace(hour=23, minute=59, second=59)
         elif data.deadline_range == "tomorrow":
@@ -648,7 +649,7 @@ def update_order(db: Session, order_id: int, data: OrderUpdate) -> Optional[Orde
     
     # Mark completed
     if data.status == "completed" and not order.completed_at:
-        order.completed_at = datetime.utcnow()
+        order.completed_at = now_georgia()
     
     db.commit()
     db.refresh(order)

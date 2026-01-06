@@ -11,6 +11,7 @@ from app.schemas import (
     ConversationCreate, ConversationUpdate, ConversationResponse,
     ConversationListResponse, ConversationDetailResponse
 )
+from app.utils.timezone import now_georgia
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 
@@ -46,7 +47,7 @@ def get_conversations(
     
     # Filter by period
     if period:
-        now = datetime.utcnow()
+        now = now_georgia()
         if period == "24h":
             since = now - timedelta(hours=24)
         elif period == "48h":
@@ -119,7 +120,7 @@ def create_conversation(data: ConversationCreate, db: Session = Depends(get_db))
         source=data.source or "manual",
         category=data.category,
         status="new",
-        started_at=datetime.utcnow()
+        started_at=now_georgia()
     )
     
     db.add(conversation)
@@ -159,7 +160,7 @@ def update_conversation(
         conversation.rejection_reason = data.rejection_reason
         conversation.rejection_custom = data.rejection_custom
     
-    conversation.updated_at = datetime.utcnow()
+    conversation.updated_at = now_georgia()
     db.commit()
     db.refresh(conversation)
     
@@ -182,7 +183,7 @@ def delete_conversation(
     
     conversation.is_deleted = True
     conversation.deletion_reason = reason
-    conversation.updated_at = datetime.utcnow()
+    conversation.updated_at = now_georgia()
     
     db.commit()
     
@@ -200,7 +201,7 @@ def mark_conversation_read(conversation_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Conversation not found")
     
     conversation.unread_count = 0
-    conversation.updated_at = datetime.utcnow()
+    conversation.updated_at = now_georgia()
     
     # Also update client's unread count
     client = db.query(Client).filter(Client.id == conversation.client_id).first()

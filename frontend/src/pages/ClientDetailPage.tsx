@@ -420,20 +420,16 @@ export default function ClientDetailPage() {
   };
 
   const formatTime = (dateStr: string) => {
-    // Parse as UTC (backend returns UTC without Z suffix)
-    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
-    return date.toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });
+    return new Date(dateStr).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   };
   const formatDate = (dateStr: string) => {
-    // Parse as UTC
-    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
-    const todayInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
-    const yesterdayInGeorgia = new Date(todayInGeorgia);
-    yesterdayInGeorgia.setDate(yesterdayInGeorgia.getDate() - 1);
-    const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
-    if (dateInGeorgia.toDateString() === todayInGeorgia.toDateString()) return 'Сегодня';
-    if (dateInGeorgia.toDateString() === yesterdayInGeorgia.toDateString()) return 'Вчера';
-    return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', month: 'short', day: 'numeric', year: 'numeric' });
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return 'Сегодня';
+    if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
+    return date.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric', year: 'numeric' });
   };
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -669,7 +665,7 @@ export default function ClientDetailPage() {
               {[
                 { label: 'Источник', value: client.source || 'telegram-business', icon: '📱' },
                 { label: 'Язык', value: client.language_code?.toUpperCase() || '—', icon: '🌍' },
-                { label: 'Создан', value: (client.created_at.endsWith('Z') ? new Date(client.created_at) : new Date(client.created_at + 'Z')).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' }), icon: '📅' },
+                { label: 'Создан', value: new Date(client.created_at).toLocaleDateString('ru-RU'), icon: '📅' },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
                   <span className="text-[var(--text-muted)] flex items-center gap-2"><span>{item.icon}</span>{item.label}</span>
@@ -1026,7 +1022,7 @@ export default function ClientDetailPage() {
                             <div>
                               <div className="font-semibold">{service.label} × {order.quantity}</div>
                               <div className="text-sm text-[var(--text-muted)]">
-                                {(order.created_at.endsWith('Z') ? new Date(order.created_at) : new Date(order.created_at + 'Z')).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
+                                {new Date(order.created_at).toLocaleDateString('ru-RU')}
                               </div>
                             </div>
                           </div>
@@ -1040,7 +1036,7 @@ export default function ClientDetailPage() {
                         
                         {order.deadline_calculated && (
                           <div className="text-sm text-[var(--text-muted)] mb-2">
-                            📅 Дедлайн: {(order.deadline_calculated.endsWith('Z') ? new Date(order.deadline_calculated) : new Date(order.deadline_calculated + 'Z')).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
+                            📅 Дедлайн: {new Date(order.deadline_calculated).toLocaleDateString('ru-RU')}
                           </div>
                         )}
                         

@@ -22,6 +22,7 @@ from app.llm.groq_client import classify_thumbnail
 from app.llm.order_detector import detect_order
 from app.utils.logging import get_logger
 from app.utils.language import detect_language_from_messages
+from app.utils.timezone import now_georgia
 from app.api.websocket import broadcast_update
 
 logger = get_logger(__name__)
@@ -59,7 +60,7 @@ def get_or_create_conversation(db, client, business_connection_id: str = None):
         business_connection_id=business_connection_id,
         source="telegram",
         status="new",
-        started_at=datetime.utcnow(),
+        started_at=now_georgia(),
     )
     db.add(new_conv)
     db.commit()
@@ -172,14 +173,14 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             text=message.text,
             message_type="text",
             telegram_message_id=message.message_id,
-            sent_at=datetime.utcnow(),
+            sent_at=now_georgia(),
         )
         db.add(new_msg)
         
         # Update conversation unread count for incoming messages
         if not is_owner_message:
             conversation.unread_count = (conversation.unread_count or 0) + 1
-            conversation.updated_at = datetime.utcnow()
+            conversation.updated_at = now_georgia()
         
         db.commit()
         db.refresh(new_msg)
@@ -266,7 +267,7 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             return
         
         # Client message - check if we should process
-        client.last_client_message_at = datetime.utcnow()
+        client.last_client_message_at = now_georgia()
         
         # AI Order Detection - автоматически анализируем КАЖДОЕ сообщение от клиента
         # Это должно происходить независимо от других проверок
@@ -298,7 +299,7 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         # 
         # ВАЖНО: Проверяем только ПЕРВОЕ сообщение сессии, а не каждое!
         # Если клиент уже в процессе общения (buffer_messages не пустой), продолжаем обработку
-        now = datetime.utcnow()
+        now = now_georgia()
         
         # Проверяем, есть ли уже буфер сообщений (клиент в процессе общения)
         has_active_buffer = client.buffer_messages and len(json.loads(client.buffer_messages)) > 0
@@ -499,7 +500,7 @@ async def send_mini_app(
             
             # Mark as processed
             client.thumbnail_processed = True
-            client.last_auto_reply_at = datetime.utcnow()
+            client.last_auto_reply_at = now_georgia()
             db.commit()
             
             logger.info(f"Sent Mini App to client {client.id}")
@@ -533,7 +534,7 @@ async def send_mini_app(
                 
                 # Mark as processed
                 client.thumbnail_processed = True
-                client.last_auto_reply_at = datetime.utcnow()
+                client.last_auto_reply_at = now_georgia()
                 
                 # Clear invalid business_connection_id
                 client.business_connection_id = None

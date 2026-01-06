@@ -44,25 +44,20 @@ export default function Timeline({ orders, messages, className = '' }: TimelineP
       date: m.sent_at,
       data: m,
     })),
-  ].sort((a, b) => {
-    const dateA = a.date.endsWith('Z') ? new Date(a.date) : new Date(a.date + 'Z');
-    const dateB = b.date.endsWith('Z') ? new Date(b.date) : new Date(b.date + 'Z');
-    return dateB.getTime() - dateA.getTime();
-  });
+  ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const formatDate = (dateStr: string) => {
-    // Parse as UTC (backend returns UTC without Z suffix)
-    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
+    const date = new Date(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     
     if (diff < 86400000) {
-      return date.toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
     }
     if (diff < 604800000) {
-      return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleDateString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
     }
-    return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   };
 
   if (items.length === 0) {

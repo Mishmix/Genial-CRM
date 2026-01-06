@@ -225,10 +225,8 @@ export default function SettingsPage() {
   };
   
   const formatDate = (iso: string) => {
-    // Parse as UTC (backend returns UTC without Z suffix)
-    const d = iso.endsWith('Z') ? new Date(iso) : new Date(iso + 'Z');
+    const d = new Date(iso);
     return d.toLocaleString('ru-RU', { 
-      timeZone: 'Asia/Tbilisi',
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
