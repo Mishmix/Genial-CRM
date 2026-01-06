@@ -40,21 +40,57 @@ def log_print(msg: str):
     logger.info(msg)
 
 
+# Time threshold for creating new conversation (2 hours)
+CONVERSATION_TIMEOUT_HOURS = 2
+
+
 def get_or_create_conversation(db, client, business_connection_id: str = None):
-    """Get active conversation or create new one for client."""
-    # Find active (non-deleted, non-rejected, non-ordered) conversation
-    # Only "new" status is active for conversations
-    active_conv = db.query(Conversation).filter(
+    """Get active conversation or create new one for client.
+    
+    Rules:
+    1. If there's an active conversation (status="new") - use it
+    2. If last conversation exists and owner hasn't replied yet - use it
+    3. If last message was less than 2 hours ago - use existing conversation
+    4. Otherwise - create new conversation
+    """
+    from datetime import timedelta
+    
+    # Find the most recent conversation for this client (not deleted)
+    last_conv = db.query(Conversation).filter(
         Conversation.client_id == client.id,
         Conversation.is_deleted == False,
-        Conversation.status == "new"
     ).order_by(Conversation.created_at.desc()).first()
     
-    if active_conv:
-        log_print(f"Found active conversation {active_conv.id} for client {client.id}")
-        return active_conv
+    if last_conv:
+        # Rule 1: Active conversation - always use it
+        if last_conv.status == "new":
+            log_print(f"Found active conversation {last_conv.id} (status=new) for client {client.id}")
+            return last_conv
+        
+        # Rule 2: Owner hasn't replied yet - use existing
+        if not last_conv.owner_replied:
+            log_print(f"Found conversation {last_conv.id} where owner hasn't replied yet for client {client.id}")
+            return last_conv
+        
+        # Rule 3: Check time since last message
+        now = now_georgia()
+        last_msg = db.query(Message).filter(
+            Message.client_id == client.id
+        ).order_by(Message.sent_at.desc()).first()
+        
+        if last_msg and last_msg.sent_at:
+            time_since_last = now - last_msg.sent_at
+            if time_since_last < timedelta(hours=CONVERSATION_TIMEOUT_HOURS):
+                log_print(f"Last message was {time_since_last} ago (< {CONVERSATION_TIMEOUT_HOURS}h), using conversation {last_conv.id}")
+                # Reopen conversation if it was closed
+                if last_conv.status in ("ordered", "rejected"):
+                    last_conv.status = "new"
+                    last_conv.owner_replied = False
+                    db.commit()
+                    log_print(f"Reopened conversation {last_conv.id}")
+                return last_conv
     
-    # Create new conversation
+    # Rule 4: Create new conversation
     new_conv = Conversation(
         client_id=client.id,
         business_connection_id=business_connection_id,
