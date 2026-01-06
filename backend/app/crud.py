@@ -860,8 +860,18 @@ def get_orders_board(db: Session) -> dict:
     """
     from datetime import date
     from sqlalchemy.orm import joinedload
+    import logging
+    
+    logger = logging.getLogger(__name__)
     
     today = date.today()
+    logger.info(f"[BOARD] Today is {today}")
+    
+    # Сначала посмотрим все pending заказы
+    all_pending = db.query(Order).filter(Order.status == "pending").all()
+    logger.info(f"[BOARD] Total pending orders: {len(all_pending)}")
+    for o in all_pending:
+        logger.info(f"[BOARD] Order {o.id}: service={o.service_type}, deadline={o.deadline_date}, source={o.source}")
     
     # Просроченные (дедлайн до сегодня)
     overdue = db.query(Order).options(
@@ -901,6 +911,8 @@ def get_orders_board(db: Session) -> dict:
     ).filter(
         Order.status == "completed"
     ).order_by(Order.completed_at.desc().nullslast()).limit(50).all()
+    
+    logger.info(f"[BOARD] Results: overdue={len(overdue)}, today={len(today_orders)}, later={len(later)}, completed={len(completed)}")
     
     return {
         "overdue": overdue,

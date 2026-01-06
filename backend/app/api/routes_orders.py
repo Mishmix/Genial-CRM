@@ -57,6 +57,10 @@ async def get_board(
         logger.error(f"Todoist auto-sync failed: {e}")
     
     data = get_orders_board(db)
+    
+    # Debug logging
+    logger.info(f"[BOARD] overdue={len(data['overdue'])}, today={len(data['today'])}, later={len(data['later'])}, completed={len(data.get('completed', []))}")
+    
     return {
         "overdue": [OrderBoardResponse.model_validate(o) for o in data["overdue"]],
         "today": [OrderBoardResponse.model_validate(o) for o in data["today"]],
