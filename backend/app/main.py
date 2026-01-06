@@ -202,6 +202,7 @@ cors_origins = [
     "http://localhost:3000",
     "https://beneficial-hope-production.up.railway.app",
     "https://genial-crm-production.up.railway.app",
+    "https://marvelous-vitality-production-17e5.up.railway.app",
 ]
 # Add any configured origins
 cors_origins.extend(settings.cors_origins_list)
