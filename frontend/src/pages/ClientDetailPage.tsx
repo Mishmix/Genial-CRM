@@ -419,9 +419,14 @@ export default function ClientDetailPage() {
     } catch (err) { toast.error('Ошибка сохранения'); }
   };
 
-  const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });
+  const formatTime = (dateStr: string) => {
+    // Parse as UTC (backend returns UTC without Z suffix)
+    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
+    return date.toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });
+  };
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // Parse as UTC
+    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
     const todayInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
     const yesterdayInGeorgia = new Date(todayInGeorgia);
     yesterdayInGeorgia.setDate(yesterdayInGeorgia.getDate() - 1);
@@ -664,7 +669,7 @@ export default function ClientDetailPage() {
               {[
                 { label: 'Источник', value: client.source || 'telegram-business', icon: '📱' },
                 { label: 'Язык', value: client.language_code?.toUpperCase() || '—', icon: '🌍' },
-                { label: 'Создан', value: new Date(client.created_at).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' }), icon: '📅' },
+                { label: 'Создан', value: (client.created_at.endsWith('Z') ? new Date(client.created_at) : new Date(client.created_at + 'Z')).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' }), icon: '📅' },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
                   <span className="text-[var(--text-muted)] flex items-center gap-2"><span>{item.icon}</span>{item.label}</span>
@@ -1021,7 +1026,7 @@ export default function ClientDetailPage() {
                             <div>
                               <div className="font-semibold">{service.label} × {order.quantity}</div>
                               <div className="text-sm text-[var(--text-muted)]">
-                                {new Date(order.created_at).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
+                                {(order.created_at.endsWith('Z') ? new Date(order.created_at) : new Date(order.created_at + 'Z')).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
                               </div>
                             </div>
                           </div>
@@ -1035,7 +1040,7 @@ export default function ClientDetailPage() {
                         
                         {order.deadline_calculated && (
                           <div className="text-sm text-[var(--text-muted)] mb-2">
-                            📅 Дедлайн: {new Date(order.deadline_calculated).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
+                            📅 Дедлайн: {(order.deadline_calculated.endsWith('Z') ? new Date(order.deadline_calculated) : new Date(order.deadline_calculated + 'Z')).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
                           </div>
                         )}
                         

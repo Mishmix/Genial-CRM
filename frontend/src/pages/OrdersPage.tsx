@@ -133,14 +133,17 @@ export default function OrdersPage() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Без дедлайна';
-    const date = new Date(dateStr);
-    const todayInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
-    const tomorrowInGeorgia = new Date(todayInGeorgia);
-    tomorrowInGeorgia.setDate(tomorrowInGeorgia.getDate() + 1);
-    const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
+    // Parse as UTC (backend returns UTC without Z suffix)
+    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' });
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' });
+    const dateStr2 = date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' });
     
-    if (dateInGeorgia.toDateString() === todayInGeorgia.toDateString()) return 'Сегодня';
-    if (dateInGeorgia.toDateString() === tomorrowInGeorgia.toDateString()) return 'Завтра';
+    if (dateStr2 === todayStr) return 'Сегодня';
+    if (dateStr2 === tomorrowStr) return 'Завтра';
     
     return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', day: 'numeric', month: 'short' });
   };

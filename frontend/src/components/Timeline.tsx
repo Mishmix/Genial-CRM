@@ -47,10 +47,10 @@ export default function Timeline({ orders, messages, className = '' }: TimelineP
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const nowInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
-    const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
-    const diff = nowInGeorgia.getTime() - dateInGeorgia.getTime();
+    // Parse as UTC (backend returns UTC without Z suffix)
+    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
     
     if (diff < 86400000) {
       return date.toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });

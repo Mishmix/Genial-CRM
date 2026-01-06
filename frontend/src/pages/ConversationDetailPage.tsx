@@ -276,7 +276,9 @@ export default function ConversationDetailPage() {
 
   const formatMessageTime = (dateStr: string | null) => {
     if (!dateStr) return '';
-    return new Date(dateStr).toLocaleTimeString('ru-RU', {
+    // Parse as UTC (backend returns UTC without Z suffix)
+    const date = dateStr.endsWith('Z') ? new Date(dateStr) : new Date(dateStr + 'Z');
+    return date.toLocaleTimeString('ru-RU', {
       timeZone: 'Asia/Tbilisi',
       hour: '2-digit',
       minute: '2-digit',

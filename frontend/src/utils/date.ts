@@ -1,9 +1,19 @@
 // Date utilities with Georgia timezone (UTC+4)
 const TIMEZONE = 'Asia/Tbilisi';
 
+// Parse date string as UTC (backend returns UTC without Z suffix)
+export function parseAsUTC(dateStr: string): Date {
+  // If already has timezone info, parse as is
+  if (dateStr.endsWith('Z') || dateStr.includes('+') || dateStr.includes('-', 10)) {
+    return new Date(dateStr);
+  }
+  // Otherwise treat as UTC by adding Z
+  return new Date(dateStr + 'Z');
+}
+
 export function formatDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  const date = parseAsUTC(dateStr);
   return date.toLocaleString('ru-RU', {
     timeZone: TIMEZONE,
     day: 'numeric',
@@ -15,7 +25,7 @@ export function formatDateTime(dateStr: string | null | undefined): string {
 
 export function formatTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  const date = parseAsUTC(dateStr);
   return date.toLocaleTimeString('ru-RU', {
     timeZone: TIMEZONE,
     hour: '2-digit',
@@ -25,7 +35,7 @@ export function formatTime(dateStr: string | null | undefined): string {
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
-  const date = new Date(dateStr);
+  const date = parseAsUTC(dateStr);
   return date.toLocaleDateString('ru-RU', {
     timeZone: TIMEZONE,
     day: 'numeric',
@@ -36,14 +46,11 @@ export function formatDate(dateStr: string | null | undefined): string {
 export function formatRelativeTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '';
   
-  // Parse the date and get current time in Georgia timezone
-  const date = new Date(dateStr);
+  // Parse the date as UTC
+  const date = parseAsUTC(dateStr);
+  const now = new Date();
   
-  // Get current time in Georgia timezone
-  const nowInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
-  const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: TIMEZONE }));
-  
-  const diffMs = nowInGeorgia.getTime() - dateInGeorgia.getTime();
+  const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
@@ -60,7 +67,7 @@ export function formatRelativeTime(dateStr: string | null | undefined): string {
 
 export function isToday(dateStr: string | null | undefined): boolean {
   if (!dateStr) return false;
-  const date = new Date(dateStr);
+  const date = parseAsUTC(dateStr);
   const today = new Date();
   return date.toLocaleDateString('ru-RU', { timeZone: TIMEZONE }) === 
          today.toLocaleDateString('ru-RU', { timeZone: TIMEZONE });
@@ -68,7 +75,7 @@ export function isToday(dateStr: string | null | undefined): boolean {
 
 export function isTomorrow(dateStr: string | null | undefined): boolean {
   if (!dateStr) return false;
-  const date = new Date(dateStr);
+  const date = parseAsUTC(dateStr);
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   return date.toLocaleDateString('ru-RU', { timeZone: TIMEZONE }) === 

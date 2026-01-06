@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sqlalchemy import create_engine, text
 
 SQLITE_URL = "sqlite:///crm.db"
-POSTGRES_URL = "postgresql://postgres:AJTHvKxErblWKUfANfeCPXpBSoOOxMBF@switchyard.proxy.rlwy.net:44751/railway"
+POSTGRES_URL = "postgresql://postgres:hEQnVgkPtOjvoJicrYXpnjfmHGkADKab@ballast.proxy.rlwy.net:32607/railway"
 
 TABLES = [
     "settings", "admins", "tags", "templates", "rejection_reasons",
