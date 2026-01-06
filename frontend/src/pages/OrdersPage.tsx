@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../components/PageWrapper';
 import { useToast } from '../contexts/ToastContext';
+import { API_BASE } from '../api';
 
 interface OrderClient {
   id: number;
@@ -59,7 +60,7 @@ export default function OrdersPage() {
 
   const loadBoard = async () => {
     try {
-      const response = await fetch('/api/orders/board', { credentials: 'include' });
+      const response = await fetch(`${API_BASE}/orders/board`, { credentials: 'include' });
       if (response.ok) {
         const data = await response.json();
         setBoard(data);
@@ -74,7 +75,7 @@ export default function OrdersPage() {
   const handleCompleteOrder = async (orderId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`/api/orders/${orderId}`, {
+      await fetch(`${API_BASE}/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -90,7 +91,7 @@ export default function OrdersPage() {
   const handleDeleteOrder = async (orderId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await fetch(`/api/orders/${orderId}`, {
+      await fetch(`${API_BASE}/orders/${orderId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
@@ -104,7 +105,7 @@ export default function OrdersPage() {
   const handleSyncTodoist = async () => {
     setSyncing(true);
     try {
-      const response = await fetch('/api/todoist/sync', {
+      const response = await fetch(`${API_BASE}/todoist/sync`, {
         method: 'POST',
         credentials: 'include'
       });

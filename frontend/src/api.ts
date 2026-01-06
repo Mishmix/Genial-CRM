@@ -3,7 +3,7 @@
  */
 
 // В production используем переменную окружения, в dev - относительный путь (через proxy)
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+export const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 interface ApiError {
   detail: string;
