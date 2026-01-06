@@ -665,7 +665,7 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
                 client = db.query(Message).filter(Message.client_id == client_id).first()
                 from app.models import Client as ClientModel
                 client_obj = db.query(ClientModel).filter(ClientModel.id == client_id).first()
-                client_name = client_obj.first_name if client_obj else "Клиент"
+                client_name = f"{client_obj.first_name} {client_obj.last_name or ''}".strip() if client_obj else "Клиент"
                 
                 log_print(f"[TODOIST] Creating task for order {order.id}...")
                 result = await create_task_from_order(

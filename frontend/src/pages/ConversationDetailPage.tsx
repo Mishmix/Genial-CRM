@@ -7,6 +7,7 @@ import {
   ConversationDetail, Order 
 } from '../api';
 import PageWrapper from '../components/PageWrapper';
+import Avatar from '../components/Avatar';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useToast } from '../contexts/ToastContext';
 import DatePicker from '../components/DatePicker';
@@ -370,20 +371,7 @@ export default function ConversationDetailPage() {
         {client && (
           <div className="card p-6 mb-6">
             <div className="flex items-start gap-5">
-              {client.avatar_local_path ? (
-                <img 
-                  src={`http://localhost:8000${client.avatar_local_path}`}
-                  alt={client.first_name}
-                  className="w-16 h-16 rounded-2xl object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                    (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                  }}
-                />
-              ) : null}
-              <div className={`avatar avatar-lg ${client.avatar_local_path ? 'hidden' : ''}`}>
-                {getInitials(client.first_name)}
-              </div>
+              <Avatar name={client.first_name} size="xl" />
               
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">

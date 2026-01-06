@@ -8,6 +8,7 @@ import {
   ClientDetail, Template, Tag, Order, RejectionReason, Client
 } from '../api';
 import PageWrapper from '../components/PageWrapper';
+import Avatar from '../components/Avatar';
 import { useWebSocket } from '../hooks/useWebSocket';
 import DatePicker from '../components/DatePicker';
 import Select from '../components/Select';
@@ -530,38 +531,7 @@ export default function ClientDetailPage() {
           {/* Profile */}
           <div className="card p-6">
             <div className="flex items-center gap-4 mb-6">
-              <div className="relative group">
-                {client.avatar_local_path ? (
-                  <img 
-                    src={`http://localhost:8000${client.avatar_local_path}`}
-                    alt={client.first_name}
-                    className="w-16 h-16 rounded-2xl object-cover"
-                  />
-                ) : (
-                  <div className="avatar avatar-lg">
-                    {getInitials(client.first_name)}
-                  </div>
-                )}
-                {/* Fetch avatar button */}
-                {client.telegram_user_id > 0 && !client.avatar_local_path && (
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        const result = await fetchClientAvatar(client.id);
-                        if (result.success && result.avatar_url) {
-                          setClient(c => c ? { ...c, avatar_local_path: result.avatar_url! } : null);
-                        }
-                      } catch (e) {
-                        console.error('Failed to fetch avatar:', e);
-                      }
-                    }}
-                    className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs"
-                  >
-                    📷
-                  </button>
-                )}
-              </div>
+              <Avatar name={client.first_name} size="xl" />
               <div>
                 <h1 className="text-xl font-bold gradient-text">{client.first_name} {client.last_name || ''}</h1>
                 <p className="text-[var(--text-muted)]">{client.username ? `@${client.username}` : `ID: ${client.telegram_user_id}`}</p>

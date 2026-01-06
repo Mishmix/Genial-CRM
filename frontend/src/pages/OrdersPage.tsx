@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageWrapper from '../components/PageWrapper';
+import Avatar from '../components/Avatar';
 import { useToast } from '../contexts/ToastContext';
 import { API_BASE } from '../api';
 
@@ -172,17 +173,7 @@ export default function OrdersPage() {
       className="flex items-center gap-4 p-4 rounded-xl bg-[var(--bg-secondary)] hover:bg-[var(--bg-hover)] cursor-pointer transition-colors group relative"
     >
       {/* Avatar */}
-      {order.client?.avatar_local_path ? (
-        <img 
-          src={`http://localhost:8000${order.client.avatar_local_path}`}
-          alt={order.client.first_name}
-          className="w-10 h-10 rounded-xl object-cover"
-        />
-      ) : (
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white text-sm font-medium">
-          {order.client ? getInitials(order.client.first_name) : '?'}
-        </div>
-      )}
+      <Avatar name={order.client?.first_name || '?'} size="md" />
       
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -395,17 +386,7 @@ export default function OrdersPage() {
                       className="flex items-center gap-4 p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20 cursor-pointer transition-colors hover:bg-emerald-500/10"
                     >
                       {/* Avatar */}
-                      {order.client?.avatar_local_path ? (
-                        <img 
-                          src={`http://localhost:8000${order.client.avatar_local_path}`}
-                          alt={order.client.first_name}
-                          className="w-10 h-10 rounded-xl object-cover opacity-70"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-sm font-medium">
-                          {order.client ? getInitials(order.client.first_name) : '?'}
-                        </div>
-                      )}
+                      <Avatar name={order.client?.first_name || '?'} size="md" />
                       
                       {/* Info */}
                       <div className="flex-1 min-w-0">
@@ -425,7 +406,7 @@ export default function OrdersPage() {
                       {/* Amount */}
                       {order.amount && (
                         <span className="text-emerald-400/60 font-semibold">${order.amount}</span>
-                      )}
+                      )}}
                       
                       {/* Completed badge */}
                       <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400">

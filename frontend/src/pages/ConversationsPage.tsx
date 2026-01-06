@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getConversations, deleteConversation, Conversation } from '../api';
 import PageWrapper from '../components/PageWrapper';
+import Avatar from '../components/Avatar';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useToast } from '../contexts/ToastContext';
 import { formatRelativeTime } from '../utils/date';
@@ -306,17 +307,7 @@ export default function ConversationsPage() {
                     }`} />
                     
                     {/* Avatar */}
-                    {client.avatar_local_path ? (
-                      <img 
-                        src={`http://localhost:8000${client.avatar_local_path}`}
-                        alt={client.first_name}
-                        className="w-12 h-12 rounded-2xl object-cover"
-                      />
-                    ) : (
-                      <div className="avatar avatar-md">
-                        {getInitials(client.first_name)}
-                      </div>
-                    )}
+                    <Avatar name={client.first_name} size="lg" />
                     
                     {/* Client info */}
                     <div className="flex-1 min-w-0">
