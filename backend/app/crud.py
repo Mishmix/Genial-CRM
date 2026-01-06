@@ -420,7 +420,7 @@ def set_setting(db: Session, key: str, value: str) -> Setting:
     setting = db.query(Setting).filter(Setting.key == key).first()
     if setting:
         setting.value = value
-        setting.updated_at = now_georgia()
+        # updated_at will be set automatically by SQLAlchemy onupdate
     else:
         setting = Setting(key=key, value=value)
         db.add(setting)

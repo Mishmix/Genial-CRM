@@ -57,25 +57,29 @@ async def update_setting(
     current_user: dict = Depends(get_current_user),
 ):
     """Update a setting in database."""
-    
-    # All settings now go to DB
-    set_setting(db, data.key, data.value)
-    
-    # For API keys, also update environment variable for current process
-    env_mapping = {
-        "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
-        "groq_api_key": "GROQ_API_KEY",
-        "mini_app_url": "MINI_APP_URL",
-        "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
-    }
-    
-    if data.key in env_mapping:
-        os.environ[env_mapping[data.key]] = data.value
-        # Clear settings cache to reload
-        from app.config import get_settings
-        get_settings.cache_clear()
-    
-    return {"success": True, "key": data.key, "requires_restart": data.key == "telegram_bot_token"}
+    try:
+        # All settings now go to DB
+        set_setting(db, data.key, data.value)
+        
+        # For API keys, also update environment variable for current process
+        env_mapping = {
+            "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
+            "groq_api_key": "GROQ_API_KEY",
+            "mini_app_url": "MINI_APP_URL",
+            "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
+        }
+        
+        if data.key in env_mapping:
+            os.environ[env_mapping[data.key]] = data.value
+            # Clear settings cache to reload
+            from app.config import get_settings
+            get_settings.cache_clear()
+        
+        return {"success": True, "key": data.key, "requires_restart": data.key == "telegram_bot_token"}
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to save setting {data.key}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
 
 
 @router.post("/restart-bot")
