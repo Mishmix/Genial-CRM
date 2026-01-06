@@ -863,27 +863,29 @@ def get_orders_board(db: Session) -> dict:
     
     today = date.today()
     
-    # Базовый запрос - активные заказы с клиентами
-    base_query = db.query(Order).options(
+    # Просроченные (дедлайн до сегодня)
+    overdue = db.query(Order).options(
         joinedload(Order.client)
     ).filter(
-        Order.status.notin_(["completed", "cancelled", "refunded", "deleted"])
-    )
-    
-    # Просроченные (дедлайн до сегодня)
-    overdue = base_query.filter(
+        Order.status == "pending",
         Order.deadline_date.isnot(None),
         func.date(Order.deadline_date) < today
     ).order_by(Order.deadline_date.asc()).all()
     
     # Сегодня
-    today_orders = base_query.filter(
+    today_orders = db.query(Order).options(
+        joinedload(Order.client)
+    ).filter(
+        Order.status == "pending",
         Order.deadline_date.isnot(None),
         func.date(Order.deadline_date) == today
     ).order_by(Order.created_at.desc()).all()
     
     # Позже (дедлайн после сегодня или без дедлайна)
-    later = base_query.filter(
+    later = db.query(Order).options(
+        joinedload(Order.client)
+    ).filter(
+        Order.status == "pending",
         or_(
             Order.deadline_date.is_(None),
             func.date(Order.deadline_date) > today
