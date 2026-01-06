@@ -406,7 +406,7 @@ export default function OrdersPage() {
                       {/* Amount */}
                       {order.amount && (
                         <span className="text-emerald-400/60 font-semibold">${order.amount}</span>
-                      )}}
+                      )}
                       
                       {/* Completed badge */}
                       <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400">
