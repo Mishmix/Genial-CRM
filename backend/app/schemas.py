@@ -240,6 +240,7 @@ class ManualClientCreate(BaseModel):
 
 class OrderCreate(BaseModel):
     client_id: int
+    conversation_id: Optional[int] = None
     service_type: str = Field(..., pattern="^(thumbnail|banner|logo|channel_design|other)$")
     quantity: int = 1
     amount: Optional[int] = None  # in cents

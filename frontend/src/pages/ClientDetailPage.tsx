@@ -422,12 +422,13 @@ export default function ClientDetailPage() {
   const formatTime = (dateStr: string) => new Date(dateStr).toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === today.toDateString()) return 'Сегодня';
-    if (date.toDateString() === yesterday.toDateString()) return 'Вчера';
-    return date.toLocaleDateString('ru-RU', { month: 'short', day: 'numeric', year: 'numeric' });
+    const todayInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
+    const yesterdayInGeorgia = new Date(todayInGeorgia);
+    yesterdayInGeorgia.setDate(yesterdayInGeorgia.getDate() - 1);
+    const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
+    if (dateInGeorgia.toDateString() === todayInGeorgia.toDateString()) return 'Сегодня';
+    if (dateInGeorgia.toDateString() === yesterdayInGeorgia.toDateString()) return 'Вчера';
+    return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', month: 'short', day: 'numeric', year: 'numeric' });
   };
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
@@ -663,7 +664,7 @@ export default function ClientDetailPage() {
               {[
                 { label: 'Источник', value: client.source || 'telegram-business', icon: '📱' },
                 { label: 'Язык', value: client.language_code?.toUpperCase() || '—', icon: '🌍' },
-                { label: 'Создан', value: new Date(client.created_at).toLocaleDateString('ru-RU'), icon: '📅' },
+                { label: 'Создан', value: new Date(client.created_at).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' }), icon: '📅' },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
                   <span className="text-[var(--text-muted)] flex items-center gap-2"><span>{item.icon}</span>{item.label}</span>
@@ -1020,7 +1021,7 @@ export default function ClientDetailPage() {
                             <div>
                               <div className="font-semibold">{service.label} × {order.quantity}</div>
                               <div className="text-sm text-[var(--text-muted)]">
-                                {new Date(order.created_at).toLocaleDateString('ru-RU')}
+                                {new Date(order.created_at).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
                               </div>
                             </div>
                           </div>
@@ -1034,7 +1035,7 @@ export default function ClientDetailPage() {
                         
                         {order.deadline_calculated && (
                           <div className="text-sm text-[var(--text-muted)] mb-2">
-                            📅 Дедлайн: {new Date(order.deadline_calculated).toLocaleDateString('ru-RU')}
+                            📅 Дедлайн: {new Date(order.deadline_calculated).toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi' })}
                           </div>
                         )}
                         

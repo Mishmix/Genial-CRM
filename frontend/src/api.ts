@@ -336,9 +336,10 @@ export interface RejectionReason {
   emoji: string | null;
 }
 
-export async function getOrders(params: { client_id?: number; status?: string } = {}) {
+export async function getOrders(params: { client_id?: number; conversation_id?: number; status?: string } = {}) {
   const query = new URLSearchParams();
   if (params.client_id) query.set('client_id', String(params.client_id));
+  if (params.conversation_id) query.set('conversation_id', String(params.conversation_id));
   if (params.status) query.set('status', params.status);
   
   return request<{ items: Order[]; total: number }>(`/orders?${query}`);
@@ -350,6 +351,7 @@ export async function getOrder(id: number) {
 
 export async function createOrder(data: {
   client_id: number;
+  conversation_id?: number;
   service_type: string;
   quantity?: number;
   amount?: number;

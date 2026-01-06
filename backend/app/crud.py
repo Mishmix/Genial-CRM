@@ -550,6 +550,7 @@ def delete_reminder(db: Session, reminder_id: int) -> bool:
 def get_orders(
     db: Session,
     client_id: Optional[int] = None,
+    conversation_id: Optional[int] = None,
     status: Optional[str] = None,
     include_deleted: bool = False,
     limit: int = 100,
@@ -559,6 +560,8 @@ def get_orders(
     
     if client_id:
         query = query.filter(Order.client_id == client_id)
+    if conversation_id:
+        query = query.filter(Order.conversation_id == conversation_id)
     if status:
         query = query.filter(Order.status == status)
     
@@ -605,6 +608,7 @@ def create_order(db: Session, data: OrderCreate) -> Order:
     
     order = Order(
         client_id=data.client_id,
+        conversation_id=data.conversation_id,
         service_type=data.service_type,
         quantity=data.quantity,
         amount=data.amount,

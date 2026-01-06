@@ -134,14 +134,15 @@ export default function OrdersPage() {
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Без дедлайна';
     const date = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
+    const tomorrowInGeorgia = new Date(todayInGeorgia);
+    tomorrowInGeorgia.setDate(tomorrowInGeorgia.getDate() + 1);
+    const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
     
-    if (date.toDateString() === today.toDateString()) return 'Сегодня';
-    if (date.toDateString() === tomorrow.toDateString()) return 'Завтра';
+    if (dateInGeorgia.toDateString() === todayInGeorgia.toDateString()) return 'Сегодня';
+    if (dateInGeorgia.toDateString() === tomorrowInGeorgia.toDateString()) return 'Завтра';
     
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', day: 'numeric', month: 'short' });
   };
 
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);

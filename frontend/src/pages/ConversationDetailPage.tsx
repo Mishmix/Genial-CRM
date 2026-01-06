@@ -92,9 +92,9 @@ export default function ConversationDetailPage() {
       const conv = await getConversation(Number(id));
       setConversation(conv);
       
-      // Load orders for this conversation's client
-      if (conv.client_id) {
-        const ordersResult = await getOrders({ client_id: conv.client_id });
+      // Load orders for this conversation only
+      if (conv.id) {
+        const ordersResult = await getOrders({ conversation_id: conv.id });
         setOrders(ordersResult.items);
       }
       
@@ -179,6 +179,7 @@ export default function ConversationDetailPage() {
     try {
       const newOrder = await createOrder({
         client_id: conversation.client_id,
+        conversation_id: conversation.id,
         service_type: orderForm.service_type,
         quantity: orderForm.quantity,
         amount: Math.round(parseFloat(orderForm.amount) * 100), // Convert to cents
@@ -508,18 +509,6 @@ export default function ConversationDetailPage() {
                       'bg-gradient-to-br from-[var(--bg-secondary)] to-[var(--bg-tertiary)] border-[var(--border)] hover:border-violet-500/50'
                     }`}
                   >
-                    {/* AI Badge */}
-                    {(order as any).source === 'ai' && (
-                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/20 text-purple-400 text-xs">
-                        🤖 AI
-                        {(order as any).ai_confidence && (
-                          <span className="opacity-70">
-                            {Math.round((order as any).ai_confidence * 100)}%
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    
                     {/* Main content */}
                     <div className="p-4">
                       {/* Top row: Service type + Quantity + Amount */}
@@ -535,16 +524,24 @@ export default function ConversationDetailPage() {
                         
                         {/* Service type dropdown */}
                         <div className="flex-1">
-                          <select
-                            value={order.service_type}
-                            onChange={(e) => handleQuickUpdateOrder(order.id, 'service_type', e.target.value)}
-                            disabled={isCompleted || isCancelled}
-                            className="bg-transparent border-none text-lg font-semibold text-[var(--text-primary)] cursor-pointer hover:text-violet-400 transition-colors p-0 w-full"
-                          >
-                            {SERVICE_TYPES.map(opt => (
-                              <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={order.service_type}
+                              onChange={(e) => handleQuickUpdateOrder(order.id, 'service_type', e.target.value)}
+                              disabled={isCompleted || isCancelled}
+                              className="bg-transparent border-none text-lg font-semibold text-[var(--text-primary)] cursor-pointer hover:text-violet-400 transition-colors p-0"
+                            >
+                              {SERVICE_TYPES.map(opt => (
+                                <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
+                              ))}
+                            </select>
+                            {/* AI Badge - compact */}
+                            {(order as any).source === 'ai' && (
+                              <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-xs">
+                                🤖 AI
+                              </span>
+                            )}
+                          </div>
                           
                           {/* Upsells */}
                           {(order.has_ab_test || order.has_title || order.has_rush) && (
@@ -575,16 +572,22 @@ export default function ConversationDetailPage() {
                           </button>
                         </div>
                         
-                        {/* Amount */}
+                        {/* Amount - direct input */}
                         <div className="flex items-center bg-emerald-500/10 rounded-xl px-3 py-2">
                           <span className="text-emerald-400 text-lg mr-1">$</span>
                           <input
-                            type="number"
-                            min="0"
+                            type="text"
+                            inputMode="numeric"
                             value={Math.round((order.amount || 0) / 100)}
-                            onChange={(e) => handleQuickUpdateOrder(order.id, 'amount', (parseInt(e.target.value) || 0) * 100)}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, '');
+                              if (val !== '') {
+                                handleQuickUpdateOrder(order.id, 'amount', parseInt(val) * 100);
+                              }
+                            }}
                             disabled={isCompleted || isCancelled}
-                            className="w-16 bg-transparent border-none text-xl font-bold text-emerald-400 text-right p-0 disabled:opacity-50"
+                            className="w-20 bg-transparent border-none text-xl font-bold text-emerald-400 text-right p-0 disabled:opacity-50 focus:outline-none"
+                            placeholder="0"
                           />
                         </div>
                       </div>

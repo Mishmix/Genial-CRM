@@ -48,16 +48,17 @@ export default function Timeline({ orders, messages, className = '' }: TimelineP
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
+    const nowInGeorgia = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
+    const dateInGeorgia = new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Tbilisi' }));
+    const diff = nowInGeorgia.getTime() - dateInGeorgia.getTime();
     
     if (diff < 86400000) {
-      return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString('ru-RU', { timeZone: 'Asia/Tbilisi', hour: '2-digit', minute: '2-digit' });
     }
     if (diff < 604800000) {
-      return date.toLocaleDateString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', weekday: 'short', hour: '2-digit', minute: '2-digit' });
     }
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('ru-RU', { timeZone: 'Asia/Tbilisi', day: 'numeric', month: 'short' });
   };
 
   if (items.length === 0) {

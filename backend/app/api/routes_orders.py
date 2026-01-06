@@ -67,13 +67,14 @@ async def get_board(
 @router.get("")
 async def list_orders(
     client_id: Optional[int] = None,
+    conversation_id: Optional[int] = None,
     status: Optional[str] = None,
     limit: int = 100,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Get list of orders."""
-    orders = get_orders(db, client_id=client_id, status=status, limit=limit)
+    orders = get_orders(db, client_id=client_id, conversation_id=conversation_id, status=status, limit=limit)
     return {
         "items": [OrderResponse.model_validate(o) for o in orders],
         "total": len(orders),
