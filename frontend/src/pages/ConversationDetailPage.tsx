@@ -72,6 +72,9 @@ export default function ConversationDetailPage() {
   const [savingOrder, setSavingOrder] = useState(false);
   const [analyzingOrder, setAnalyzingOrder] = useState(false);
   
+  // Local price state for each order (to avoid saving on every keystroke)
+  const [localPrices, setLocalPrices] = useState<Record<number, string>>({});
+  
   // Rejection modal
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -92,10 +95,25 @@ export default function ConversationDetailPage() {
       const conv = await getConversation(Number(id));
       setConversation(conv);
       
-      // Load orders for this conversation only
+      // Load orders for this conversation with Todoist sync
       if (conv.id) {
+        // First trigger board sync (this syncs with Todoist)
+        try {
+          await fetch('/api/orders/board', { credentials: 'include' });
+        } catch (e) {
+          console.error('Board sync failed:', e);
+        }
+        
+        // Then load orders for this conversation
         const ordersResult = await getOrders({ conversation_id: conv.id });
         setOrders(ordersResult.items);
+        
+        // Initialize local prices
+        const prices: Record<number, string> = {};
+        ordersResult.items.forEach(o => {
+          prices[o.id] = String(Math.round((o.amount || 0) / 100));
+        });
+        setLocalPrices(prices);
       }
       
       // Mark as read
@@ -239,6 +257,21 @@ export default function ConversationDetailPage() {
       console.error('Failed to update order:', err);
       toast.error('Ошибка сохранения');
     }
+  };
+
+  const handlePriceBlur = async (orderId: number) => {
+    const localPrice = localPrices[orderId];
+    const currentAmount = orders.find(o => o.id === orderId)?.amount || 0;
+    const newAmount = parseInt(localPrice || '0') * 100;
+    
+    if (newAmount !== currentAmount) {
+      await handleQuickUpdateOrder(orderId, 'amount', newAmount);
+    }
+  };
+
+  const handlePricePreset = async (orderId: number, price: number) => {
+    setLocalPrices(prev => ({ ...prev, [orderId]: String(price) }));
+    await handleQuickUpdateOrder(orderId, 'amount', price * 100);
   };
 
   const handleCompleteOrder = async (orderId: number) => {
@@ -498,6 +531,8 @@ export default function ConversationDetailPage() {
                 const today = new Date().toISOString().split('T')[0];
                 const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
                 const orderDeadline = order.deadline_date ? order.deadline_date.split('T')[0] : '';
+                const currentPrice = localPrices[order.id] ?? String(Math.round((order.amount || 0) / 100));
+                const PRICE_PRESETS = [10, 12, 15, 18, 20];
                 
                 return (
                   <div 
@@ -508,9 +543,8 @@ export default function ConversationDetailPage() {
                       'bg-gradient-to-br from-[var(--bg-secondary)] to-[var(--bg-tertiary)] border-[var(--border)] hover:border-violet-500/50'
                     }`}
                   >
-                    {/* Main content */}
                     <div className="p-4">
-                      {/* Top row: Service type + Quantity + Amount */}
+                      {/* Top row: Service type + Quantity */}
                       <div className="flex items-center gap-4 mb-4">
                         {/* Service icon */}
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
@@ -523,24 +557,16 @@ export default function ConversationDetailPage() {
                         
                         {/* Service type dropdown */}
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={order.service_type}
-                              onChange={(e) => handleQuickUpdateOrder(order.id, 'service_type', e.target.value)}
-                              disabled={isCompleted || isCancelled}
-                              className="bg-transparent border-none text-lg font-semibold text-[var(--text-primary)] cursor-pointer hover:text-violet-400 transition-colors p-0"
-                            >
-                              {SERVICE_TYPES.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
-                              ))}
-                            </select>
-                            {/* AI Badge - compact */}
-                            {(order as any).source === 'ai' && (
-                              <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-xs">
-                                🤖 AI
-                              </span>
-                            )}
-                          </div>
+                          <select
+                            value={order.service_type}
+                            onChange={(e) => handleQuickUpdateOrder(order.id, 'service_type', e.target.value)}
+                            disabled={isCompleted || isCancelled}
+                            className="bg-transparent border-none text-lg font-semibold text-[var(--text-primary)] cursor-pointer hover:text-violet-400 transition-colors p-0"
+                          >
+                            {SERVICE_TYPES.map(opt => (
+                              <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
+                            ))}
+                          </select>
                           
                           {/* Upsells */}
                           {(order.has_ab_test || order.has_title || order.has_rush) && (
@@ -552,42 +578,67 @@ export default function ConversationDetailPage() {
                           )}
                         </div>
                         
-                        {/* Quantity */}
-                        <div className="flex items-center gap-2 bg-[var(--bg-tertiary)] rounded-xl px-3 py-2">
+                        {/* Quantity with styled buttons */}
+                        <div className="flex items-center gap-1 bg-[var(--bg-tertiary)] rounded-xl p-1">
                           <button
                             onClick={() => order.quantity > 1 && handleQuickUpdateOrder(order.id, 'quantity', order.quantity - 1)}
                             disabled={order.quantity <= 1 || isCompleted || isCancelled}
-                            className="w-7 h-7 rounded-lg bg-[var(--bg-secondary)] hover:bg-violet-500/20 text-[var(--text-muted)] hover:text-violet-400 transition-colors disabled:opacity-30"
+                            className="w-9 h-9 rounded-lg bg-violet-500/20 hover:bg-violet-500/40 text-violet-400 font-bold text-xl transition-all disabled:opacity-30 disabled:hover:bg-violet-500/20 flex items-center justify-center"
                           >
                             −
                           </button>
-                          <span className="w-8 text-center font-bold text-lg">{order.quantity}</span>
+                          <span className="w-10 text-center font-bold text-lg text-[var(--text-primary)]">{order.quantity}</span>
                           <button
                             onClick={() => handleQuickUpdateOrder(order.id, 'quantity', order.quantity + 1)}
                             disabled={isCompleted || isCancelled}
-                            className="w-7 h-7 rounded-lg bg-[var(--bg-secondary)] hover:bg-violet-500/20 text-[var(--text-muted)] hover:text-violet-400 transition-colors disabled:opacity-30"
+                            className="w-9 h-9 rounded-lg bg-violet-500/20 hover:bg-violet-500/40 text-violet-400 font-bold text-xl transition-all disabled:opacity-30 disabled:hover:bg-violet-500/20 flex items-center justify-center"
                           >
                             +
                           </button>
                         </div>
-                        
-                        {/* Amount - direct input */}
-                        <div className="flex items-center bg-emerald-500/10 rounded-xl px-3 py-2">
-                          <span className="text-emerald-400 text-lg mr-1">$</span>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={Math.round((order.amount || 0) / 100)}
-                            onChange={(e) => {
-                              const val = e.target.value.replace(/[^0-9]/g, '');
-                              if (val !== '') {
-                                handleQuickUpdateOrder(order.id, 'amount', parseInt(val) * 100);
-                              }
-                            }}
-                            disabled={isCompleted || isCancelled}
-                            className="w-20 bg-transparent border-none text-xl font-bold text-emerald-400 text-right p-0 disabled:opacity-50 focus:outline-none"
-                            placeholder="0"
-                          />
+                      </div>
+                      
+                      {/* Price row with presets */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <span className="text-sm text-[var(--text-muted)]">💰</span>
+                        <div className="flex gap-2 flex-wrap">
+                          {PRICE_PRESETS.map(price => (
+                            <button
+                              key={price}
+                              onClick={() => handlePricePreset(order.id, price)}
+                              disabled={isCompleted || isCancelled}
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                                parseInt(currentPrice) === price
+                                  ? 'bg-emerald-500 text-white'
+                                  : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                              } disabled:opacity-30`}
+                            >
+                              ${price}
+                            </button>
+                          ))}
+                          {/* Custom price input */}
+                          <div className="flex items-center bg-[var(--bg-tertiary)] rounded-lg px-2 py-1">
+                            <span className="text-emerald-400 text-sm mr-1">$</span>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={currentPrice}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                setLocalPrices(prev => ({ ...prev, [order.id]: val }));
+                              }}
+                              onBlur={() => handlePriceBlur(order.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handlePriceBlur(order.id);
+                                  (e.target as HTMLInputElement).blur();
+                                }
+                              }}
+                              disabled={isCompleted || isCancelled}
+                              className="w-14 bg-transparent border-none text-lg font-bold text-emerald-400 text-center p-0 disabled:opacity-50 focus:outline-none"
+                              placeholder="0"
+                            />
+                          </div>
                         </div>
                       </div>
                       
@@ -595,7 +646,6 @@ export default function ConversationDetailPage() {
                       <div className="flex items-center gap-3 mb-4">
                         <span className="text-sm text-[var(--text-muted)]">📅</span>
                         
-                        {/* Quick deadline buttons */}
                         <div className="flex gap-2">
                           <button
                             onClick={() => handleQuickUpdateOrder(order.id, 'deadline_date', today)}
@@ -621,7 +671,6 @@ export default function ConversationDetailPage() {
                           </button>
                         </div>
                         
-                        {/* Date picker */}
                         <input
                           type="date"
                           value={orderDeadline}
@@ -644,7 +693,6 @@ export default function ConversationDetailPage() {
                       
                       {/* Bottom row: Status + Actions */}
                       <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
-                        {/* Status selector */}
                         <div className="flex gap-2">
                           {[
                             { value: 'pending', label: 'В работе', color: 'amber' },

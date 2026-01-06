@@ -640,11 +640,31 @@ def create_order(db: Session, data: OrderCreate) -> Order:
 
 def update_order(db: Session, order_id: int, data: OrderUpdate) -> Optional[Order]:
     """Update an order."""
+    from datetime import datetime
+    
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return None
     
-    for key, value in data.model_dump(exclude_unset=True).items():
+    update_data = data.model_dump(exclude_unset=True)
+    
+    # Convert deadline_date string to datetime if needed
+    if 'deadline_date' in update_data:
+        dd = update_data['deadline_date']
+        if dd is None:
+            update_data['deadline_date'] = None
+        elif isinstance(dd, str):
+            try:
+                # Try parsing as date only (YYYY-MM-DD)
+                update_data['deadline_date'] = datetime.strptime(dd, '%Y-%m-%d')
+            except ValueError:
+                try:
+                    # Try parsing as datetime
+                    update_data['deadline_date'] = datetime.fromisoformat(dd.replace('Z', '+00:00'))
+                except ValueError:
+                    update_data['deadline_date'] = None
+    
+    for key, value in update_data.items():
         setattr(order, key, value)
     
     # Mark completed

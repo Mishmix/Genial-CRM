@@ -263,7 +263,7 @@ class OrderUpdate(BaseModel):
     has_title: Optional[bool] = None
     has_rush: Optional[bool] = None
     deadline_type: Optional[str] = None
-    deadline_date: Optional[datetime] = None
+    deadline_date: Optional[str] = None  # Accept string, convert in crud
     deadline_range: Optional[str] = None
     deadline_custom: Optional[str] = None
     status: Optional[str] = None
