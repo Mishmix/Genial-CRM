@@ -28,6 +28,7 @@ from app.api import api_router
 from app.api.websocket import router as ws_router
 from app.telegram.handlers import handle_business_message, handle_edited_business_message, handle_business_connection
 from app.telegram.bot import get_application
+from app.telegram.about_bot import init_about_bot, stop_about_bot
 from app.utils.logging import setup_logging, get_logger
 from app.seed import seed_database
 from app.backup import run_scheduled_backup
@@ -158,9 +159,22 @@ async def lifespan(app: FastAPI):
     backup_task = asyncio.create_task(backup_scheduler())
     logger.info("Backup scheduler started")
     
+    # Start About bot (portfolio bot)
+    try:
+        await init_about_bot()
+        logger.info("About bot started")
+    except Exception as e:
+        logger.error(f"Failed to start About bot: {e}")
+    
     yield
     
     # Shutdown
+    # Stop About bot
+    try:
+        await stop_about_bot()
+    except Exception as e:
+        logger.error(f"Error stopping About bot: {e}")
+    
     if backup_task:
         backup_task.cancel()
         try:
