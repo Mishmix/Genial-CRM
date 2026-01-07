@@ -3,7 +3,7 @@ About Bot - простой бот для отправки ссылки на Mini
 Работает параллельно с основным CRM ботом.
 """
 import asyncio
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 from app.utils.logging import get_logger
@@ -65,7 +65,7 @@ async def send_portfolio_message(update: Update, context: ContextTypes.DEFAULT_T
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(
             messages["button"],
-            web_app=WebAppInfo(url=MINI_APP_URL)
+            url=MINI_APP_URL
         )]
     ])
     
