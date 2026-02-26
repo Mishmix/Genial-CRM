@@ -107,16 +107,16 @@ async def create_new_order(
         if todoist_enabled:
             api_token = get_setting(db, "todoist_api_token")
             project_id = get_setting(db, "todoist_project_id")
-            section_today_id = get_setting(db, "todoist_section_today_id")
-            section_not_today_id = get_setting(db, "todoist_section_not_today_id")
-            
-            if api_token and project_id and section_today_id and section_not_today_id:
+            section_today_id = get_setting(db, "todoist_section_today_id") or ""
+            section_not_today_id = get_setting(db, "todoist_section_not_today_id") or ""
+
+            if api_token and project_id:
                 # Получаем имя клиента
                 client = get_client(db, order.client_id)
                 if client:
                     client_name = f"{client.first_name} {client.last_name or ''}".strip()
-                    
-                    await create_task_from_order(
+
+                    task_result = await create_task_from_order(
                         api_token=api_token,
                         project_id=project_id,
                         section_today_id=section_today_id,
@@ -126,7 +126,12 @@ async def create_new_order(
                         quantity=order.quantity,
                         deadline=order.deadline_calculated or order.deadline_date
                     )
-                    logger.info(f"Created Todoist task for order {order.id}")
+                    if task_result and task_result.get("id"):
+                        order.todoist_task_id = task_result["id"]
+                        db.commit()
+                        logger.info(f"Created Todoist task {task_result['id']} for order {order.id}")
+                    else:
+                        logger.warning(f"Todoist task creation returned no result for order {order.id}: {task_result}")
     except Exception as e:
         logger.error(f"Failed to create Todoist task: {e}")
         # Не прерываем создание заказа если Todoist не сработал

@@ -657,10 +657,11 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
             
             todoist_token = get_setting(db, "todoist_api_token")
             todoist_project = get_setting(db, "todoist_project_id")
-            todoist_today = get_setting(db, "todoist_section_today_id")
-            todoist_not_today = get_setting(db, "todoist_section_not_today_id")
-            
-            if todoist_token and todoist_project and todoist_today and todoist_not_today:
+            todoist_today = get_setting(db, "todoist_section_today_id") or ""
+            todoist_not_today = get_setting(db, "todoist_section_not_today_id") or ""
+            todoist_enabled_flag = get_setting(db, "todoist_enabled")
+
+            if todoist_token and todoist_project and todoist_enabled_flag != "false":
                 # Get client name
                 client = db.query(Message).filter(Message.client_id == client_id).first()
                 from app.models import Client as ClientModel

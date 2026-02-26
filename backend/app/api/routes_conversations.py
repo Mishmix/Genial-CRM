@@ -280,7 +280,7 @@ async def analyze_order(conversation_id: int, db: Session = Depends(get_db)):
                 section_today_id = get_setting(db, "todoist_section_today_id")
                 section_not_today_id = get_setting(db, "todoist_section_not_today_id")
                 
-                if api_token and project_id and section_today_id and section_not_today_id:
+                if api_token and project_id:
                     client = get_client(db, order.client_id)
                     if client:
                         client_name = f"{client.first_name} {client.last_name or ''}".strip()

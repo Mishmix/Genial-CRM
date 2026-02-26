@@ -159,12 +159,14 @@ async def create_task_from_order(
     else:
         content = f"{service_name} {client_name}"
     
-    # Определяем секцию по дедлайну
-    today = date.today()
-    if deadline and deadline.date() == today:
-        section_id = section_today_id
-    else:
-        section_id = section_not_today_id
+    # Определяем секцию по дедлайну (если секции настроены)
+    section_id = None
+    if section_today_id or section_not_today_id:
+        today = date.today()
+        if deadline and deadline.date() == today:
+            section_id = section_today_id or section_not_today_id
+        else:
+            section_id = section_not_today_id or section_today_id
     
     # Формируем дату для Todoist
     due_date = None
