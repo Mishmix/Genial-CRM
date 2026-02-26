@@ -112,8 +112,8 @@ async def _nim_completion(
     }
     
     # Force max tokens up if small, Kimi needs reasoning tokens
-    if max_completion_tokens < 1024:
-        max_completion_tokens = 1024
+    if max_completion_tokens < 4096:
+        max_completion_tokens = 4096
         
     # Always use Thinking mode for robustness
     payload = {
