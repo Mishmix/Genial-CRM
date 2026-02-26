@@ -111,15 +111,10 @@ async def _nim_completion(
         "Content-Type": "application/json",
     }
     
-    # Force max tokens up if small, Kimi needs reasoning tokens
-    if max_completion_tokens < 4096:
-        max_completion_tokens = 4096
-        
-    # Always use Thinking mode for robustness
     payload = {
         "model": NIM_MODEL,
         "messages": messages,
-        "temperature": 1.0,  # Recommended 1.0 for Thinking
+        "temperature": temperature,
         "top_p": 0.95,
         "max_tokens": max_completion_tokens,
         "stream": False
@@ -253,7 +248,7 @@ async def classify_thumbnail(buffer_messages: List[str]) -> Optional[str]:
         {"role": "user", "content": f"Сообщения клиента:\n{messages_text}"}
     ]
     
-    result = await chat_completion(messages, max_completion_tokens=4096, temperature=0.0)
+    result = await chat_completion(messages, max_completion_tokens=512, temperature=0.0)
     
     if result:
         result = result.strip()

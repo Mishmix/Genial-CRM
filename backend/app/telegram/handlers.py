@@ -1,5 +1,6 @@
 """Telegram bot message handlers with thumbnail classification."""
 import asyncio
+from app.db import SessionLocal
 import json
 import sys
 from datetime import datetime, timedelta
@@ -9,7 +10,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from app.config import get_settings
-from app.db import SessionLocal
+
 from app.crud import (
     upsert_client, create_message, get_client_by_telegram_id,
     get_setting, get_auto_reply_template, create_ai_order,
