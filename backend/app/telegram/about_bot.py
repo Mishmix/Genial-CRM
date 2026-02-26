@@ -111,7 +111,14 @@ async def init_about_bot():
     else:
         # В проде просто инициализируем (вебхуки настраиваются в main)
         await _about_app.initialize()
-        logger.info("About bot initialized for webhook mode")
+        from app.config import get_settings
+        config_settings = get_settings()
+        if config_settings.webhook_url:
+            about_webhook = f"{config_settings.webhook_url.rstrip('/')}/api/telegram/about-webhook"
+            await _about_app.bot.set_webhook(about_webhook)
+            logger.info(f"About bot initialized for webhook mode at {about_webhook}")
+        else:
+            logger.warning("About bot initialized for webhook mode but no webhook_url configured.")
     
     logger.info("About bot started successfully!")
 

@@ -154,7 +154,12 @@ async def lifespan(app: FastAPI):
                 ))
                 logger.info("Telegram bot started (polling mode)")
             else:
-                logger.info("Telegram bot initialized (webhook mode)")
+                if settings.webhook_url:
+                    webhook_url = f"{settings.webhook_url.rstrip('/')}/api/telegram/webhook"
+                    await telegram_app.bot.set_webhook(webhook_url)
+                    logger.info(f"Telegram bot initialized (webhook mode) at {webhook_url}")
+                else:
+                    logger.warning("Telegram bot initialized (webhook mode) but no webhook_url configured. Make sure to set Webhook manually.")
     else:
         logger.warning("Telegram bot token not configured")
     
@@ -270,6 +275,30 @@ async def telegram_webhook(request: Request):
         return {"ok": True}
     except Exception as e:
         logger.error(f"Webhook error: {type(e).__name__}: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Processing failed"},
+        )
+
+
+@app.post("/telegram/about-webhook")
+async def telegram_about_webhook(request: Request):
+    """Telegram webhook endpoint for About bot in production."""
+    from app.telegram.about_bot import _about_app
+    
+    if not _about_app:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "About Bot not initialized"},
+        )
+    
+    try:
+        data = await request.json()
+        update = Update.de_json(data, _about_app.bot)
+        await _about_app.process_update(update)
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"About Webhook error: {type(e).__name__}: {e}")
         return JSONResponse(
             status_code=500,
             content={"error": "Processing failed"},
