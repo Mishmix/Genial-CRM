@@ -107,11 +107,11 @@ async def init_about_bot():
         await _about_app.initialize()
         await _about_app.start()
         await _about_app.updater.start_polling(drop_pending_updates=True)
-        log_print("About bot started in polling mode")
+        logger.info("About bot started in polling mode")
     else:
         # В проде просто инициализируем (вебхуки настраиваются в main)
         await _about_app.initialize()
-        log_print("About bot initialized for webhook mode")
+        logger.info("About bot initialized for webhook mode")
     
     logger.info("About bot started successfully!")
 
