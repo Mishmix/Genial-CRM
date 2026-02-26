@@ -304,12 +304,24 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             log_print(f"[AI_ORDER] ai_analyze_after_owner_reply = {settings.ai_analyze_after_owner_reply}")
             
             if settings.ai_order_detection_enabled and settings.ai_analyze_after_owner_reply:
-                log_print(f"[AI_ORDER] Calling detect_and_create_order for conversation {conversation.id}")
+                log_print(f"[AI_ORDER] Spawning background task detect_and_create_order for conversation {conversation.id}")
                 try:
-                    order = await detect_and_create_order(db, client.id, conversation.id)
-                    log_print(f"[AI_ORDER] Result: {order}")
+                    import asyncio
+                    from app.db import SessionLocal
+                    
+                    async def bg_detect():
+                        bg_db = SessionLocal()
+                        try:
+                            order = await detect_and_create_order(bg_db, client.id, conversation.id)
+                            log_print(f"[AI_ORDER] Background Result: {order}")
+                        except Exception as e:
+                            log_print(f"[AI_ORDER] Background ERROR: {type(e).__name__}: {e}")
+                        finally:
+                            bg_db.close()
+                            
+                    asyncio.create_task(bg_detect())
                 except Exception as e:
-                    log_print(f"[AI_ORDER] ERROR: {type(e).__name__}: {e}")
+                    log_print(f"[AI_ORDER] Failed to spawn background task: {type(e).__name__}: {e}")
                     import traceback
                     log_print(traceback.format_exc())
             else:
@@ -321,15 +333,27 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         client.last_client_message_at = now_georgia()
         
         # AI Order Detection - автоматически анализируем КАЖДОЕ сообщение от клиента
-        # Это должно происходить независимо от других проверок
+        # Оборачиваем в background task, чтобы не блокировать Telegram webhook (LLM может думать долго)
         if settings.ai_order_detection_enabled:
-            log_print(f"[AI_ORDER] Auto-detecting order for incoming client message...")
+            log_print(f"[AI_ORDER] Spawning background auto-detect order task for incoming client message...")
             try:
-                order = await detect_and_create_order(db, client.id, conversation.id)
-                if order:
-                    log_print(f"[AI_ORDER] Auto-created order {order.id}")
+                import asyncio
+                from app.db import SessionLocal
+                
+                async def bg_auto_detect():
+                    bg_db = SessionLocal()
+                    try:
+                        order = await detect_and_create_order(bg_db, client.id, conversation.id)
+                        if order:
+                            log_print(f"[AI_ORDER] Background Auto-created order {order.id}")
+                    except Exception as e:
+                        log_print(f"[AI_ORDER] Background Auto-detection error: {type(e).__name__}: {e}")
+                    finally:
+                        bg_db.close()
+                        
+                asyncio.create_task(bg_auto_detect())
             except Exception as e:
-                log_print(f"[AI_ORDER] Auto-detection error: {type(e).__name__}: {e}")
+                log_print(f"[AI_ORDER] Failed to spawn background auto-detect task: {type(e).__name__}: {e}")
         
         # Skip if already processed (Mini App sent)
         if client.thumbnail_processed:
