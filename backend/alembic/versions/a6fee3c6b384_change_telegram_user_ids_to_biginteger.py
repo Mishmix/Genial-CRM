@@ -45,6 +45,7 @@ def upgrade() -> None:
                existing_type=sa.TEXT(),
                type_=sa.String(length=100),
                existing_nullable=True)
+    op.drop_index('ix_orders_deadline', table_name='orders')
     op.create_index('ix_orders_deadline', 'orders', ['deadline_date'], unique=False)
     op.alter_column('sessions', 'telegram_user_id',
                existing_type=sa.INTEGER(),
@@ -60,6 +61,7 @@ def downgrade() -> None:
                type_=sa.INTEGER(),
                existing_nullable=True)
     op.drop_index('ix_orders_deadline', table_name='orders')
+    op.create_index('ix_orders_deadline', 'orders', ['deadline_calculated'], unique=False)
     op.alter_column('orders', 'todoist_task_id',
                existing_type=sa.String(length=100),
                type_=sa.TEXT(),
