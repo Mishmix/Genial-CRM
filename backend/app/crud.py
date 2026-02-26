@@ -761,8 +761,10 @@ def find_recent_order_to_update(
     Ищет существующий AI-заказ той же переписки/типа услуги в окне N часов.
     Используется чтобы ОБНОВИТЬ детали заказа вместо создания дубликата.
     """
-    from datetime import timedelta
-    cutoff = now_georgia() - timedelta(hours=hours_window)
+    from datetime import datetime, timedelta
+    # ВАЖНО: Order.created_at хранится как UTC naive datetime (default=datetime.utcnow),
+    # поэтому cutoff тоже должен быть UTC, а не Georgia time.
+    cutoff = datetime.utcnow() - timedelta(hours=hours_window)
     return db.query(Order).filter(
         Order.client_id == client_id,
         Order.service_type == service_type,
@@ -771,6 +773,15 @@ def find_recent_order_to_update(
         Order.source == "ai",
         Order.created_at >= cutoff,
     ).order_by(Order.created_at.desc()).first()
+
+
+def get_pending_ai_orders_for_conversation(db: Session, conversation_id: int) -> list:
+    """Возвращает все pending AI заказы для переписки (для контекста AI)."""
+    return db.query(Order).filter(
+        Order.conversation_id == conversation_id,
+        Order.status == "pending",
+        Order.source == "ai",
+    ).order_by(Order.created_at.asc()).all()
 
 
 def create_ai_order(
@@ -802,6 +813,10 @@ def create_ai_order(
     )
 
     if existing:
+        # Сохраняем старые значения для сравнения (нужно handlers.py чтобы решить пересоздавать ли Todoist задачу)
+        old_quantity = existing.quantity
+        old_deadline = existing.deadline_date
+
         # Обновляем детали заказа вместо создания дубликата
         existing.quantity = quantity
         if deadline_date:
@@ -817,6 +832,8 @@ def create_ai_order(
         db.commit()
         db.refresh(existing)
         existing._was_updated = True
+        existing._old_quantity = old_quantity
+        existing._old_deadline = old_deadline
         return existing
 
     # Создаём новый заказ
