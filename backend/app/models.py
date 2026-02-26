@@ -1,6 +1,6 @@
 """SQLAlchemy models for CRM."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table, Index, Float
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table, Index, Float, BigInteger
 from sqlalchemy.orm import relationship
 from app.db import Base
 
@@ -13,7 +13,7 @@ client_tags = Table(
 class Client(Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True, index=True)
-    telegram_user_id = Column(Integer, unique=True, nullable=False, index=True)
+    telegram_user_id = Column(BigInteger, unique=True, nullable=False, index=True)
     username = Column(String(255), nullable=True, index=True)
     first_name = Column(String(255), nullable=False)
     last_name = Column(String(255), nullable=True)
@@ -55,7 +55,7 @@ class ClientAlias(Base):
     __tablename__ = "client_aliases"
     id = Column(Integer, primary_key=True, index=True)
     client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
-    telegram_id = Column(Integer, nullable=True)
+    telegram_id = Column(BigInteger, nullable=True)
     username = Column(String(255), nullable=True)
     client = relationship("Client", back_populates="aliases")
 
@@ -124,7 +124,7 @@ class Setting(Base):
 class Admin(Base):
     __tablename__ = "admins"
     id = Column(Integer, primary_key=True, index=True)
-    telegram_user_id = Column(Integer, unique=True, nullable=False)
+    telegram_user_id = Column(BigInteger, unique=True, nullable=False)
     username = Column(String(255), nullable=True)
     role = Column(String(50), default="admin")
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -134,7 +134,7 @@ class Session(Base):
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(255), unique=True, nullable=False, index=True)
     admin_id = Column(Integer, ForeignKey("admins.id", ondelete="CASCADE"), nullable=True)
-    telegram_user_id = Column(Integer, nullable=True)
+    telegram_user_id = Column(BigInteger, nullable=True)
     auth_type = Column(String(50), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

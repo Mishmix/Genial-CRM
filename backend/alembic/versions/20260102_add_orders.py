@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers
 revision = '20260102_orders'
-down_revision = None
+down_revision = '001'
 branch_labels = None
 depends_on = None
 
