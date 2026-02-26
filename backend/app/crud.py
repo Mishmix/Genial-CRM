@@ -750,38 +750,27 @@ def seed_default_tags(db: Session):
 
 # ============ AI Order Detection ============
 
-def is_duplicate_order(
+def find_recent_order_to_update(
     db: Session,
     client_id: int,
     service_type: str,
-    deadline_date: Optional[datetime],
-    quantity: int
-) -> bool:
+    conversation_id: int,
+    hours_window: int = 2,
+) -> Optional[Order]:
     """
-    Проверяет, есть ли похожий активный заказ.
-    Дубликат = тот же клиент + тип + количество + дедлайн ± 2 дня.
+    Ищет существующий AI-заказ той же переписки/типа услуги в окне N часов.
+    Используется чтобы ОБНОВИТЬ детали заказа вместо создания дубликата.
     """
-    from sqlalchemy import and_, func
-    
-    query = db.query(Order).filter(
+    from datetime import timedelta
+    cutoff = now_georgia() - timedelta(hours=hours_window)
+    return db.query(Order).filter(
         Order.client_id == client_id,
         Order.service_type == service_type,
-        Order.quantity == quantity,
-        Order.status.notin_(["completed", "cancelled", "refunded", "deleted"])
-    )
-    
-    if deadline_date:
-        # Проверяем дедлайн ± 2 дня
-        from datetime import timedelta
-        date_min = deadline_date - timedelta(days=2)
-        date_max = deadline_date + timedelta(days=2)
-        query = query.filter(
-            Order.deadline_date.isnot(None),
-            Order.deadline_date >= date_min,
-            Order.deadline_date <= date_max
-        )
-    
-    return query.first() is not None
+        Order.conversation_id == conversation_id,
+        Order.status == "pending",
+        Order.source == "ai",
+        Order.created_at >= cutoff,
+    ).order_by(Order.created_at.desc()).first()
 
 
 def create_ai_order(
@@ -791,12 +780,11 @@ def create_ai_order(
     order_data: dict
 ) -> Optional[Order]:
     """
-    Создаёт заказ от AI детектора.
-    Проверяет дубликаты и обновляет связи.
-    Также создаёт задачу в Todoist если настроено.
+    Создаёт или обновляет заказ от AI детектора.
+    Если за последние 2 часа уже был заказ того же типа в той же переписке — обновляет его.
     """
     from datetime import datetime
-    
+
     # Парсим дедлайн
     deadline_date = None
     if order_data.get("deadline_date"):
@@ -804,23 +792,39 @@ def create_ai_order(
             deadline_date = datetime.strptime(order_data["deadline_date"], "%Y-%m-%d")
         except ValueError:
             pass
-    
-    # Проверка дубликата
-    if is_duplicate_order(
-        db,
-        client_id,
-        order_data.get("service_type", "thumbnail"),
-        deadline_date,
-        order_data.get("quantity", 1)
-    ):
-        return None
-    
-    # Создаём заказ
+
+    service_type = order_data.get("service_type", "thumbnail")
+    quantity = order_data.get("quantity", 1)
+
+    # Ищем существующий заказ той же переписки для обновления
+    existing = find_recent_order_to_update(
+        db, client_id, service_type, conversation_id, hours_window=2
+    )
+
+    if existing:
+        # Обновляем детали заказа вместо создания дубликата
+        existing.quantity = quantity
+        if deadline_date:
+            existing.deadline_date = deadline_date
+            existing.deadline_calculated = deadline_date
+        if order_data.get("notes"):
+            existing.notes = order_data["notes"]
+        if order_data.get("amount"):
+            existing.amount = order_data["amount"]
+        if order_data.get("confidence"):
+            existing.ai_confidence = order_data["confidence"]
+
+        db.commit()
+        db.refresh(existing)
+        existing._was_updated = True
+        return existing
+
+    # Создаём новый заказ
     order = Order(
         client_id=client_id,
         conversation_id=conversation_id,
-        service_type=order_data.get("service_type", "thumbnail"),
-        quantity=order_data.get("quantity", 1),
+        service_type=service_type,
+        quantity=quantity,
         amount=order_data.get("amount"),
         deadline_date=deadline_date,
         deadline_calculated=deadline_date,
@@ -830,27 +834,24 @@ def create_ai_order(
         status="pending",
     )
     db.add(order)
-    
+
     # Обновляем клиента
     client = db.query(Client).filter(Client.id == client_id).first()
     if client:
         client.total_orders = (client.total_orders or 0) + 1
         if client.status in ("new", "sent_price"):
             client.status = "ordered"
-    
+
     # Обновляем статус обращения
     from app.models import Conversation
     conversation = db.query(Conversation).filter(Conversation.id == conversation_id).first()
     if conversation and conversation.status == "new":
         conversation.status = "ordered"
-    
+
     db.commit()
     db.refresh(order)
-    
-    # Todoist task will be created by the caller (async context)
-    # Store settings for later use
-    order._todoist_pending = True
-    
+    order._was_updated = False
+
     return order
 
 

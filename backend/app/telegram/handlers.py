@@ -169,14 +169,28 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
     db = SessionLocal()
     try:
         # Upsert client
-        client_data = ClientCreate(
-            telegram_user_id=user.id,
-            username=user.username,
-            first_name=user.first_name or "Unknown",
-            last_name=user.last_name,
-            language_code=user.language_code,
-            business_connection_id=business_connection_id,
-        )
+        # For owner's outgoing messages: the client is message.chat (the person being written to),
+        # NOT message.from_user (which would be the owner themselves).
+        if is_owner_message:
+            chat = message.chat
+            client_data = ClientCreate(
+                telegram_user_id=chat.id,
+                username=getattr(chat, 'username', None),
+                first_name=getattr(chat, 'first_name', None) or "Unknown",
+                last_name=getattr(chat, 'last_name', None),
+                language_code=None,
+                business_connection_id=business_connection_id,
+            )
+            log_print(f"Owner message: using chat as client (chat.id={chat.id}, name={getattr(chat, 'first_name', '')})")
+        else:
+            client_data = ClientCreate(
+                telegram_user_id=user.id,
+                username=user.username,
+                first_name=user.first_name or "Unknown",
+                last_name=user.last_name,
+                language_code=user.language_code,
+                business_connection_id=business_connection_id,
+            )
         client = upsert_client(db, client_data)
         log_print(f"Client upserted: id={client.id}, first_seen_at={client.first_seen_at}, thumbnail_processed={client.thumbnail_processed}, owner_replied={client.owner_replied}")
         
@@ -188,11 +202,12 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             log_print(f"Client {client.id} auto-unarchived due to new message")
         
         # Fetch avatar if not already cached
+        # Use the client's telegram_user_id (not owner's user.id for outgoing messages)
         if not client.avatar_local_path:
             try:
-                avatar_path = await get_or_fetch_avatar(user.id)
+                avatar_path = await get_or_fetch_avatar(client.telegram_user_id)
                 if avatar_path:
-                    client.avatar_local_path = get_avatar_url(user.id)
+                    client.avatar_local_path = get_avatar_url(client.telegram_user_id)
                     db.commit()
                     log_print(f"Avatar fetched for client {client.id}: {client.avatar_local_path}")
             except Exception as e:
@@ -604,22 +619,28 @@ async def handle_edited_business_message(
 
 async def detect_and_create_order(db, client_id: int, conversation_id: int):
     """
-    Анализирует переписку и создаёт заказ если найден.
+    Анализирует переписку и создаёт/обновляет заказ если найден.
     Вызывается автоматически при получении сообщений.
     """
     log_print(f"[DETECT_ORDER] Starting for client={client_id}, conversation={conversation_id}")
-    
+
     # Получаем сообщения обращения
     messages = db.query(Message).filter(
         Message.conversation_id == conversation_id
     ).order_by(Message.sent_at.asc()).all()
-    
+
     log_print(f"[DETECT_ORDER] Found {len(messages)} messages in conversation")
-    
+
     if len(messages) < 1:
         log_print(f"[DETECT_ORDER] No messages to analyze")
         return None
-    
+
+    # Не детектим заказы если нет ни одного входящего сообщения от клиента
+    has_client_message = any(m.direction == "in" for m in messages)
+    if not has_client_message:
+        log_print(f"[DETECT_ORDER] No incoming client messages — skipping detection")
+        return None
+
     # Форматируем для детектора
     messages_data = [
         {
@@ -629,32 +650,33 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         }
         for m in messages
     ]
-    
+
     log_print(f"[DETECT_ORDER] Messages data: {messages_data}")
-    
+
     # Детектим заказ
     log_print(f"[DETECT_ORDER] Calling detect_order()...")
     order_data = await detect_order(messages_data)
-    
+
     log_print(f"[DETECT_ORDER] detect_order returned: {order_data}")
-    
+
     if not order_data:
         log_print(f"[DETECT_ORDER] No order detected for conversation {conversation_id}")
         return None
-    
+
     log_print(f"[DETECT_ORDER] AI detected order: {order_data}")
-    
-    # Создаём заказ
+
+    # Создаём или обновляем заказ
     log_print(f"[DETECT_ORDER] Calling create_ai_order()...")
     order = create_ai_order(db, client_id, conversation_id, order_data)
-    
+
     if order:
-        log_print(f"[DETECT_ORDER] Created AI order {order.id} for client {client_id}")
-        
-        # Create Todoist task if configured
+        was_updated = getattr(order, '_was_updated', False)
+        log_print(f"[DETECT_ORDER] {'Updated' if was_updated else 'Created'} AI order {order.id} for client {client_id}")
+
+        # Sync Todoist task if configured
         try:
-            from app.integrations.todoist import create_task_from_order
-            
+            from app.integrations.todoist import create_task_from_order, TodoistClient
+
             todoist_token = get_setting(db, "todoist_api_token")
             todoist_project = get_setting(db, "todoist_project_id")
             todoist_today = get_setting(db, "todoist_section_today_id") or ""
@@ -662,28 +684,37 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
             todoist_enabled_flag = get_setting(db, "todoist_enabled")
 
             if todoist_token and todoist_project and todoist_enabled_flag != "false":
-                # Get client name
-                client = db.query(Message).filter(Message.client_id == client_id).first()
                 from app.models import Client as ClientModel
                 client_obj = db.query(ClientModel).filter(ClientModel.id == client_id).first()
                 client_name = f"{client_obj.first_name} {client_obj.last_name or ''}".strip() if client_obj else "Клиент"
-                
-                log_print(f"[TODOIST] Creating task for order {order.id}...")
+
+                # If order was updated and already had a Todoist task — delete old task first
+                if was_updated and order.todoist_task_id:
+                    try:
+                        tc = TodoistClient(todoist_token)
+                        await tc.delete_task(order.todoist_task_id)
+                        order.todoist_task_id = None
+                        db.commit()
+                        log_print(f"[TODOIST] Deleted old task for updated order {order.id}")
+                    except Exception as del_e:
+                        log_print(f"[TODOIST] Failed to delete old task: {del_e}")
+
+                log_print(f"[TODOIST] {'Re-creating' if was_updated else 'Creating'} task for order {order.id}...")
                 result = await create_task_from_order(
                     todoist_token, todoist_project, todoist_today, todoist_not_today,
                     client_name, order.service_type, order.quantity, order.deadline_date
                 )
-                
+
                 if result and result.get("id"):
                     order.todoist_task_id = result["id"]
                     db.commit()
-                    log_print(f"[TODOIST] Created task {result['id']} for order {order.id}")
+                    log_print(f"[TODOIST] Task {result['id']} {'re-created' if was_updated else 'created'} for order {order.id}")
                 else:
                     log_print(f"[TODOIST] Failed to create task: {result}")
         except Exception as e:
-            log_print(f"[TODOIST] Error creating task: {type(e).__name__}: {e}")
-        
-        # Broadcast new order
+            log_print(f"[TODOIST] Error syncing task: {type(e).__name__}: {e}")
+
+        # Broadcast order event
         try:
             await broadcast_update("new_order", {
                 "order_id": order.id,
@@ -692,11 +723,12 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
                 "source": "ai",
                 "service_type": order.service_type,
                 "quantity": order.quantity,
+                "updated": was_updated,
             })
         except Exception as e:
-            log_print(f"[DETECT_ORDER] Failed to broadcast new order: {e}")
-        
+            log_print(f"[DETECT_ORDER] Failed to broadcast order event: {e}")
+
         return order
     else:
-        log_print(f"[DETECT_ORDER] Order not created (duplicate?) for conversation {conversation_id}")
+        log_print(f"[DETECT_ORDER] Order not created for conversation {conversation_id}")
         return None
