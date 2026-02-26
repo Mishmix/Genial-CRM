@@ -199,7 +199,11 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
             debug_log(f"No order detected. Reason: {reason}")
             return None
 
-        confidence = data.get("confidence", 0)
+        try:
+            confidence = float(data.get("confidence", 0))
+        except (ValueError, TypeError):
+            confidence = 0.0
+            
         threshold = settings.ai_order_confidence_threshold
         debug_log(f"Confidence: {confidence}, threshold: {threshold}")
 

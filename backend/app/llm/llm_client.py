@@ -16,7 +16,7 @@ DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 # NIM Config
 NIM_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-NIM_MODEL = "meta/llama-3.1-70b-instruct"
+NIM_MODEL = "moonshotai/kimi-k2.5"
 
 TIMEOUT = 180.0
 MAX_RETRIES = 2
