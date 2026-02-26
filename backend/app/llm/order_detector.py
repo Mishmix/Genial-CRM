@@ -140,6 +140,10 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
             max_completion_tokens=500,
         )
 
+        if not result:
+            debug_log("GPT returned empty result")
+            return None
+
         debug_log(f"GPT raw response: {result[:500]}...")
 
         if not result:
