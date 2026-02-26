@@ -30,7 +30,10 @@ ORDER_DETECTION_PROMPT = """Ты анализатор переписки диз�
 - Упоминается тип работы (превью, обложка, баннер, лого)
 
 КРИТИЧЕСКИ ВАЖНО:
-- Если клиент уточнял заказ несколько раз — бери данные из ПОСЛЕДНЕГО сообщения клиента. Последнее сообщение всегда приоритетнее первого!
+- В переписке хронология имеет решающее значение!
+- Шаг 1: Прочитай переписку СВЕРХУ ВНИЗ.
+- Шаг 2: В поле "thought_process" опиши, как менялся заказ. Что просили изначально? Изменилось ли количество или дедлайн в последнем сообщении (например, "нужно 3 обложки сейчас")? Последнее сообщение клиента ПРИОРИТЕТНЕЕ всех предыдущих!
+- Шаг 3: Выведи итоговый результат. Если количество или срок изменились в конце, используй именно новые, ОБНОВЛЁННЫЕ значения.
 - Если клиент что-то просит = это ЗАКАЗ. Не жди подтверждения дизайнера!
 
 Типы услуг (если не указано = thumbnail):
@@ -46,8 +49,8 @@ ORDER_DETECTION_PROMPT = """Ты анализатор переписки диз�
 {existing_orders_section}Переписка (хронологически, последнее внизу):
 {messages}
 
-Ответь JSON одной строкой:
-{{"has_order":true,"confidence":0.9,"reason":"причина","order":{{"service_type":"thumbnail","quantity":1,"amount":null,"deadline_date":"2026-01-06","deadline_text":"на завтра","notes":"описание"}}}}"""
+Ответь строго в формате JSON:
+{{"thought_process":"твой пошаговый анализ хронологии сообщений...","has_order":true,"confidence":0.9,"reason":"причина","order":{{"service_type":"thumbnail","quantity":3,"amount":null,"deadline_date":"2026-02-27","deadline_text":"сейчас","notes":"описание"}}}}"""
 
 
 def _format_existing_orders(existing_orders: Optional[List]) -> str:
@@ -146,9 +149,18 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
         # Парсим JSON из ответа - пробуем разные варианты
         data = None
 
-        # Вариант 1: весь ответ это JSON
+        # Вариант 1: весь ответ это JSON, возможно внутри markdown
+        clean_json = result.strip()
+        if clean_json.startswith('```json'):
+            clean_json = clean_json[7:]
+        elif clean_json.startswith('```'):
+            clean_json = clean_json[3:]
+        if clean_json.endswith('```'):
+            clean_json = clean_json[:-3]
+        clean_json = clean_json.strip()
+
         try:
-            data = json.loads(result.strip())
+            data = json.loads(clean_json)
         except json.JSONDecodeError:
             pass
 
