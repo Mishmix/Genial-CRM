@@ -308,7 +308,6 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
                 log_print(f"[AI_ORDER] Spawning background task detect_and_create_order for conversation {conversation.id}")
                 try:
                     import asyncio
-                    from app.db import SessionLocal
                     
                     async def bg_detect():
                         bg_db = SessionLocal()
@@ -339,7 +338,6 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             log_print(f"[AI_ORDER] Spawning background auto-detect order task for incoming client message...")
             try:
                 import asyncio
-                from app.db import SessionLocal
                 
                 async def bg_auto_detect():
                     bg_db = SessionLocal()
