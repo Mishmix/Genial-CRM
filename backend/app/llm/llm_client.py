@@ -18,7 +18,7 @@ DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 NIM_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 NIM_MODEL = "moonshotai/kimi-k2.5"
 
-TIMEOUT = 60.0
+TIMEOUT = 180.0
 MAX_RETRIES = 2
 
 # System prompt for thumbnail classification
