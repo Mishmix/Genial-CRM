@@ -149,15 +149,13 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
         # Парсим JSON из ответа - пробуем разные варианты
         data = None
 
-        # Вариант 1: весь ответ это JSON, возможно внутри markdown
+        # Очистка от markdown блоков и лишних пробелов
         clean_json = result.strip()
-        if clean_json.startswith('```json'):
-            clean_json = clean_json[7:]
-        elif clean_json.startswith('```'):
-            clean_json = clean_json[3:]
-        if clean_json.endswith('```'):
-            clean_json = clean_json[:-3]
-        clean_json = clean_json.strip()
+        
+        # Попытка вытащить чисто JSON через регулярку (ищет от первой { до последней })
+        json_match = re.search(r'(\{.*\})', clean_json, re.DOTALL)
+        if json_match:
+            clean_json = json_match.group(1)
 
         try:
             data = json.loads(clean_json)
