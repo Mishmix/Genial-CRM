@@ -8,8 +8,11 @@ export default function SettingsPage() {
     // Bot configuration
     telegram_bot_token: '',
     telegram_bot_token_set: false,
+    llm_provider: 'groq',
     groq_api_key: '',
     groq_api_key_set: false,
+    nim_api_key: '',
+    nim_api_key_set: false,
     mini_app_url: '',
     admin_telegram_ids: '',
     // App settings
@@ -274,8 +277,8 @@ export default function SettingsPage() {
             <span className="text-sm text-[var(--text-secondary)]">Токен бота</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className={`w-3 h-3 rounded-full ${settings.groq_api_key_set ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <span className="text-sm text-[var(--text-secondary)]">Groq API</span>
+            <div className={`w-3 h-3 rounded-full ${settings.llm_provider === 'nim' ? (settings.nim_api_key_set ? 'bg-emerald-500' : 'bg-red-500') : (settings.groq_api_key_set ? 'bg-emerald-500' : 'bg-red-500')}`} />
+            <span className="text-sm text-[var(--text-secondary)]">Нейросеть ({settings.llm_provider === 'nim' ? 'NIM' : 'Groq'})</span>
           </div>
           <div className="flex items-center gap-2">
             <div className={`w-3 h-3 rounded-full ${settings.mini_app_url ? 'bg-emerald-500' : 'bg-amber-500'}`} />
@@ -337,46 +340,111 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* === GROQ API KEY === */}
+        {/* === LLM PROVIDER === */}
         <div className="card p-6 stagger-item">
           <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-green-500/10 rounded-[20px]" />
           <div className="relative z-10">
             <div className="flex items-start gap-4 mb-5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center text-3xl shadow-lg" style={{ boxShadow: '0 8px 30px -5px rgba(16, 185, 129, 0.5)' }}>🔑</div>
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center text-3xl shadow-lg" style={{ boxShadow: '0 8px 30px -5px rgba(16, 185, 129, 0.5)' }}>🧠</div>
               <div className="flex-1">
-                <h3 className="font-semibold text-lg text-[var(--text-primary)]">Groq API ключ</h3>
+                <h3 className="font-semibold text-lg text-[var(--text-primary)]">Нейросеть (LLM)</h3>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Получить на <a href="https://console.groq.com" target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">console.groq.com</a> (бесплатно)
+                  Выберите модель для парсинга и анализа чатов
                 </p>
               </div>
-              {settings.groq_api_key_set && (
-                <span className="badge badge-qualified">✓ Настроено</span>
-              )}
             </div>
-            
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
+
+            <div className="flex gap-4 mb-6">
+              <label className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${settings.llm_provider === 'groq' ? 'border-emerald-500 bg-emerald-500/10' : 'border-[var(--border)] hover:border-[var(--text-muted)]'}`}>
                 <input 
-                  type={showTokens['groq_api_key'] ? 'text' : 'password'} 
-                  value={newValues['groq_api_key'] || ''} 
-                  onChange={(e) => setNewValues(prev => ({ ...prev, groq_api_key: e.target.value }))} 
-                  className="input pr-12 font-mono text-sm" 
-                  placeholder={settings.groq_api_key_set ? `Current: ${settings.groq_api_key}` : "gsk_..."} 
+                  type="radio" 
+                  name="llm_provider" 
+                  value="groq" 
+                  checked={settings.llm_provider === 'groq'}
+                  onChange={() => handleSave('llm_provider', 'groq')}
+                  className="hidden" 
                 />
-                <button onClick={() => toggleShow('groq_api_key')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-                  {showTokens['groq_api_key'] ? '🙈' : '👁️'}
-                </button>
-              </div>
-              <button 
-                onClick={() => handleSave('groq_api_key', newValues['groq_api_key'] || '')} 
-                disabled={saving === 'groq_api_key' || !newValues['groq_api_key']} 
-                className="btn btn-primary min-w-[110px]"
-              >
-                {saving === 'groq_api_key' ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : saved === 'groq_api_key' ? '✓ Сохранено' : 'Сохранить'}
-              </button>
+                <span className="font-semibold text-[var(--text-primary)]">Groq</span>
+              </label>
+              
+              <label className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${settings.llm_provider === 'nim' ? 'border-emerald-500 bg-emerald-500/10' : 'border-[var(--border)] hover:border-[var(--text-muted)]'}`}>
+                <input 
+                  type="radio" 
+                  name="llm_provider" 
+                  value="nim" 
+                  checked={settings.llm_provider === 'nim'}
+                  onChange={() => handleSave('llm_provider', 'nim')}
+                  className="hidden" 
+                />
+                <span className="font-semibold text-[var(--text-primary)]">NVIDIA NIM (Kimi) 🌟</span>
+              </label>
             </div>
-            
-            <p className="text-xs text-[var(--text-muted)] mt-3">Используется для классификации с GPT-OSS-120B</p>
+
+            {settings.llm_provider === 'groq' && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="font-semibold text-[var(--text-primary)]">Groq API ключ</span>
+                  {settings.groq_api_key_set && <span className="badge badge-qualified text-xs">✓ Настроено</span>}
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1 relative">
+                    <input 
+                      type={showTokens['groq_api_key'] ? 'text' : 'password'} 
+                      value={newValues['groq_api_key'] || ''} 
+                      onChange={(e) => setNewValues(prev => ({ ...prev, groq_api_key: e.target.value }))} 
+                      className="input pr-12 font-mono text-sm" 
+                      placeholder={settings.groq_api_key_set ? `Current: ${settings.groq_api_key}` : "gsk_..."} 
+                    />
+                    <button onClick={() => toggleShow('groq_api_key')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                      {showTokens['groq_api_key'] ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => handleSave('groq_api_key', newValues['groq_api_key'] || '')} 
+                    disabled={saving === 'groq_api_key' || !newValues['groq_api_key']} 
+                    className="btn btn-primary min-w-[110px]"
+                  >
+                    {saving === 'groq_api_key' ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : saved === 'groq_api_key' ? '✓ Сохранено' : 'Сохранить'}
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--text-muted)] mt-2">
+                  Используется для классификации с GPT-OSS-120B. Получить на <a href="https://console.groq.com" target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">console.groq.com</a> (бесплатно)
+                </p>
+              </div>
+            )}
+
+            {settings.llm_provider === 'nim' && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="font-semibold text-[var(--text-primary)]">NVIDIA NIM API ключ</span>
+                  {settings.nim_api_key_set && <span className="badge badge-qualified text-xs">✓ Настроено</span>}
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1 relative">
+                    <input 
+                      type={showTokens['nim_api_key'] ? 'text' : 'password'} 
+                      value={newValues['nim_api_key'] || ''} 
+                      onChange={(e) => setNewValues(prev => ({ ...prev, nim_api_key: e.target.value }))} 
+                      className="input pr-12 font-mono text-sm" 
+                      placeholder={settings.nim_api_key_set ? `Current: ${settings.nim_api_key}` : "nvapi-..."} 
+                    />
+                    <button onClick={() => toggleShow('nim_api_key')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+                      {showTokens['nim_api_key'] ? '🙈' : '👁️'}
+                    </button>
+                  </div>
+                  <button 
+                    onClick={() => handleSave('nim_api_key', newValues['nim_api_key'] || '')} 
+                    disabled={saving === 'nim_api_key' || !newValues['nim_api_key']} 
+                    className="btn btn-primary min-w-[110px]"
+                  >
+                    {saving === 'nim_api_key' ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : saved === 'nim_api_key' ? '✓ Сохранено' : 'Сохранить'}
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--text-muted)] mt-2">
+                  Используется для парсинга заказов с Kimi k2.5. Получить на <a href="https://build.nvidia.com" target="_blank" rel="noopener" className="text-[var(--accent)] hover:underline">build.nvidia.com</a> (бесплатно)
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

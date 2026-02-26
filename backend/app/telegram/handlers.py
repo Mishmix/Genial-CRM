@@ -18,7 +18,7 @@ from app.models import Conversation, Message
 from app.schemas import ClientCreate
 from app.telegram.bot import send_message
 from app.telegram.avatars import get_or_fetch_avatar, get_avatar_url
-from app.llm.groq_client import classify_thumbnail
+from app.llm.llm_client import classify_thumbnail
 from app.llm.order_detector import detect_order
 from app.utils.logging import get_logger
 from app.utils.language import detect_language_from_messages

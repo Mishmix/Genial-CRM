@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 
-from app.llm.groq_client import chat_completion
+from app.llm.llm_client import chat_completion
 from app.config import get_settings
 from app.utils.logging import get_logger
 

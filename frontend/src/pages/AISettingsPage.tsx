@@ -57,7 +57,9 @@ const DEFAULT_PROMPTS = {
 
 export default function AISettingsPage() {
   const [settings, setSettings] = useState({
+    llm_provider: 'groq',
     groq_api_key_set: false,
+    nim_api_key_set: false,
     prompt_thumbnail_classification: DEFAULT_PROMPTS.thumbnail_classification,
   });
   const [loading, setLoading] = useState(true);
@@ -68,13 +70,13 @@ export default function AISettingsPage() {
 
   const loadSettings = async () => {
     setLoading(true);
-    try { 
-      const data = await getSettings(); 
-      setSettings(s => ({ 
-        ...s, 
+    try {
+      const data = await getSettings();
+      setSettings(s => ({
+        ...s,
         ...data,
         prompt_thumbnail_classification: data.prompt_thumbnail_classification || DEFAULT_PROMPTS.thumbnail_classification,
-      })); 
+      }));
     }
     catch (err) { console.error('Failed to load settings:', err); }
     finally { setLoading(false); }
@@ -118,20 +120,24 @@ export default function AISettingsPage() {
         {/* Status */}
         <div className="card p-5 mb-6">
           <div className="flex items-center gap-4">
-            <div className={`w-3 h-3 rounded-full ${settings.groq_api_key_set ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
+            <div className={`w-3 h-3 rounded-full ${(settings.llm_provider === 'nim' ? settings.nim_api_key_set : settings.groq_api_key_set) ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
             <span className="text-sm text-[var(--text-secondary)]">
-              {settings.groq_api_key_set 
-                ? 'Groq API настроен — используется openai/gpt-oss-120b' 
-                : 'Groq API не настроен — перейдите в Настройки для добавления ключа'}
+              {settings.llm_provider === 'nim'
+                ? (settings.nim_api_key_set
+                  ? 'NVIDIA NIM API настроен — используется Kimi k2.5'
+                  : 'NVIDIA NIM API не настроен — перейдите в Настройки для добавления ключа')
+                : (settings.groq_api_key_set
+                  ? 'Groq API настроен — используется openai/gpt-oss-120b'
+                  : 'Groq API не настроен — перейдите в Настройки для добавления ключа')}
             </span>
-            {!settings.groq_api_key_set && (
+            {!(settings.llm_provider === 'nim' ? settings.nim_api_key_set : settings.groq_api_key_set) && (
               <a href="/settings" className="btn btn-sm btn-primary ml-auto">Настроить →</a>
             )}
           </div>
         </div>
 
         <div className="space-y-6">
-          
+
           {/* How it works */}
           <div className="card p-6 stagger-item">
             <div className="flex items-start gap-4 mb-6">
@@ -154,7 +160,7 @@ export default function AISettingsPage() {
                   <li>• "шапка и превью"</li>
                 </ul>
               </div>
-              
+
               <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
                 <div className="font-semibold text-red-400 mb-2 flex items-center gap-2">
                   <span>🚫</span> "email_lead" → Игнор
@@ -166,7 +172,7 @@ export default function AISettingsPage() {
                   <li>• "Увидел предложение"</li>
                 </ul>
               </div>
-              
+
               <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
                 <div className="font-semibold text-amber-400 mb-2 flex items-center gap-2">
                   <span>⏸️</span> "other" → Ждать ещё
@@ -197,26 +203,26 @@ export default function AISettingsPage() {
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg">🎯</div>
                 <div>
                   <h3 className="font-semibold text-lg text-[var(--text-primary)]">Промпт классификации</h3>
-                  <p className="text-sm text-[var(--text-secondary)]">Системный промпт для GPT-OSS-120B</p>
+                  <p className="text-sm text-[var(--text-secondary)]">Системный промпт для {settings.llm_provider === 'nim' ? 'Kimi k2.5' : 'GPT-OSS-120B'}</p>
                 </div>
               </div>
               <button onClick={handleResetPrompt} className="btn btn-ghost btn-sm">↺ Сбросить</button>
             </div>
-            
+
             <textarea
               value={settings.prompt_thumbnail_classification}
               onChange={(e) => setSettings(s => ({ ...s, prompt_thumbnail_classification: e.target.value }))}
               className="input mb-3 font-mono text-sm"
               rows={18}
             />
-            
+
             <div className="flex items-center justify-between">
               <p className="text-xs text-[var(--text-muted)]">
                 Должен возвращать: <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-blue-400">{`{"category":"email_lead"}`}</code>, <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-emerald-400">{`{"category":"thumbnail"}`}</code> или <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-amber-400">{`{"category":"other"}`}</code>
               </p>
-              <button 
-                onClick={() => handleSave('prompt_thumbnail_classification', settings.prompt_thumbnail_classification)} 
-                disabled={saving === 'prompt_thumbnail_classification'} 
+              <button
+                onClick={() => handleSave('prompt_thumbnail_classification', settings.prompt_thumbnail_classification)}
+                disabled={saving === 'prompt_thumbnail_classification'}
                 className="btn btn-primary"
               >
                 {saving === 'prompt_thumbnail_classification' ? 'Сохранение...' : saved === 'prompt_thumbnail_classification' ? '✓ Сохранено' : 'Сохранить промпт'}
