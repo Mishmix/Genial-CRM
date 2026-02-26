@@ -253,7 +253,7 @@ async def classify_thumbnail(buffer_messages: List[str]) -> Optional[str]:
         {"role": "user", "content": f"Сообщения клиента:\n{messages_text}"}
     ]
     
-    result = await chat_completion(messages, max_completion_tokens=512, temperature=0.0)
+    result = await chat_completion(messages, max_completion_tokens=4096, temperature=0.0)
     
     if result:
         result = result.strip()
