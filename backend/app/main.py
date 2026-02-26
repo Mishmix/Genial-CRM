@@ -143,8 +143,11 @@ async def lifespan(app: FastAPI):
             
             await telegram_app.initialize()
             
+            import os
+            is_railway = bool(os.environ.get('RAILWAY_ENVIRONMENT_NAME') or os.environ.get('PORT'))
+            
             # Start polling in development mode
-            if not settings.is_production and not settings.webhook_url:
+            if not is_railway and not settings.is_production and not settings.webhook_url:
                 await telegram_app.start()
                 asyncio.create_task(telegram_app.updater.start_polling(
                     allowed_updates=Update.ALL_TYPES  # Explicitly request all update types
