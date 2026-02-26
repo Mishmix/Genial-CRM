@@ -48,15 +48,23 @@ class TodoistClient:
                 logger.error(f"Todoist request failed: {e}")
                 return None
     
+    def _extract_list(self, result) -> List[Dict]:
+        """Extract list from API response (handles both array and paginated object)"""
+        if isinstance(result, list):
+            return result
+        if isinstance(result, dict):
+            return result.get("items", result.get("results", []))
+        return []
+
     async def get_projects(self) -> List[Dict]:
         """Get all projects"""
         result = await self._request("GET", "projects")
-        return result if result else []
-    
+        return self._extract_list(result)
+
     async def get_sections(self, project_id: str) -> List[Dict]:
         """Get all sections for a project"""
         result = await self._request("GET", "sections", {"project_id": project_id})
-        return result if result else []
+        return self._extract_list(result)
     
     async def create_task(
         self,
@@ -100,7 +108,7 @@ class TodoistClient:
             params["project_id"] = project_id
         
         result = await self._request("GET", "tasks", params)
-        return result if result else []
+        return self._extract_list(result)
     
     async def close_task(self, task_id: str) -> bool:
         """Mark task as complete"""
