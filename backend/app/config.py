@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     
     # LLM Settings
-    llm_provider: str = "groq"  # "groq" or "nim"
+    llm_provider: str = "groq"  # "groq" or "gemini"
     groq_api_key: str = ""
-    nim_api_key: str = ""
+    gemini_api_key: str = ""
     
     # Application
     portfolio_url: str = "https://example.com/portfolio"
@@ -95,7 +95,7 @@ def load_settings_from_db():
             db_keys = {
                 "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
                 "groq_api_key": "GROQ_API_KEY",
-                "nim_api_key": "NIM_API_KEY",
+                "gemini_api_key": "GEMINI_API_KEY",
                 "llm_provider": "LLM_PROVIDER",
                 "mini_app_url": "MINI_APP_URL",
                 "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",

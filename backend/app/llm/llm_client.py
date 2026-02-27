@@ -14,14 +14,14 @@ logger = get_logger(__name__)
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
-# NIM Config
-NIM_API_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
-NIM_MODEL = "moonshotai/kimi-k2.5"
+# Gemini Config
+GEMINI_MODEL = "gemini-3-flash-preview"
 
 TIMEOUT = 180.0
 MAX_RETRIES = 2
 
 # System prompt for thumbnail classification
+# ... (same classification prompt)
 THUMBNAIL_CLASSIFICATION_PROMPT = """Ты — строгий классификатор входящих сообщений для дизайнера YouTube-обложек.
 Задача: определить категорию сообщения клиента.
 
@@ -80,17 +80,17 @@ async def chat_completion(
     temperature: float = 0.2,
     max_completion_tokens: int = 1024,
 ) -> Optional[str]:
-    """Send chat completion request to the configured LLM API (Groq or NIM)."""
+    """Send chat completion request to the configured LLM API (Groq or Gemini)."""
     settings = get_settings()
     provider = getattr(settings, "llm_provider", "groq").lower()
 
-    if provider == "nim":
-        if not hasattr(settings, "nim_api_key") or not settings.nim_api_key:
-            logger.warning("NIM API key not configured, falling back to Groq if available")
+    if provider == "gemini":
+        if not getattr(settings, "gemini_api_key", None):
+            logger.warning("Gemini API key not configured, falling back to Groq if available")
             if settings.groq_api_key:
                 return await _groq_completion(messages, model, temperature, max_completion_tokens)
             return None
-        return await _nim_completion(messages, temperature, max_completion_tokens)
+        return await _gemini_completion(messages, temperature, max_completion_tokens)
     else:
         if not settings.groq_api_key:
             logger.warning("Groq API key not configured")
@@ -98,67 +98,56 @@ async def chat_completion(
         return await _groq_completion(messages, model, temperature, max_completion_tokens)
 
 
-async def _nim_completion(
+async def _gemini_completion(
     messages: List[Dict[str, str]],
-    temperature: float = 1.0,
-    max_completion_tokens: int = 4096,
+    temperature: float = 0.2,
+    max_completion_tokens: int = 2048,
 ) -> Optional[str]:
-    """Send request to NVIDIA NIM API (Kimi k2.5)."""
+    """Send request to Google Gemini 3 Flash API using the SDK."""
     settings = get_settings()
     
-    headers = {
-        "Authorization": f"Bearer {settings.nim_api_key}",
-        "Content-Type": "application/json",
-    }
-    
-    payload = {
-        "model": NIM_MODEL,
-        "messages": messages,
-        "temperature": temperature,
-        "top_p": 0.95,
-        "max_tokens": max_completion_tokens,
-        "stream": False
-    }
-    
-    logger.info(f"Sending request to NIM API with model={NIM_MODEL}")
-    
-    for attempt in range(MAX_RETRIES):
-        try:
-            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-                response = await client.post(
-                    NIM_API_URL,
-                    headers=headers,
-                    json=payload,
-                )
-                logger.info(f"NIM API response status: {response.status_code}")
-                
-                if response.status_code == 429:
-                    logger.warning("NIM API Rate Limited (429), waiting 2s...")
-                    time.sleep(2.0)
-                    continue
-                    
-                if response.status_code != 200:
-                    logger.error(f"NIM API error: {response.text}")
-                    return None
-                
-                data = response.json()
-                message = data["choices"][0]["message"]
-                
-                # NIM provides reasoning in `reasoning_content`
-                result = message.get("content", "")
-                reasoning = message.get("reasoning_content", "")
-                
-                logger.info(f"NIM content: '{result}', reasoning length: {len(reasoning) if reasoning else 0}")
-                
-                return result
-                
-        except httpx.TimeoutException:
-            logger.warning(f"NIM API timeout (attempt {attempt + 1}/{MAX_RETRIES})")
-        except Exception as e:
-            logger.error(f"NIM API error: {type(e).__name__}: {e}")
-            break
-    
-    return None
+    try:
+        from google import genai
+        from google.genai import types
+        
+        client = genai.Client(api_key=settings.gemini_api_key)
+        
+        # Extract system instruction if present
+        system_instruction = None
+        user_messages = []
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            else:
+                user_messages.append(msg["content"])
+        
+        # Join user messages as a single string for simple cases
+        contents = "\n".join(user_messages)
+        
+        logger.info(f"Sending request to Gemini API (model={GEMINI_MODEL}, level=minimal)")
+        
+        # Use simple string content as per SDK examples for non-multimodal
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=temperature,
+                max_output_tokens=max_completion_tokens,
+                thinking_config=types.ThinkingConfig(thinking_level="minimal")
+            )
+        )
+        
+        result = response.text
+        logger.info(f"Gemini response length: {len(result) if result else 0}")
+        return result
+        
+    except ImportError:
+        logger.error("google-genai library not installed")
+        return None
+    except Exception as e:
+        logger.error(f"Gemini API error: {type(e).__name__}: {e}")
+        return None
 
 
 async def _groq_completion(
