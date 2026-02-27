@@ -111,6 +111,7 @@ class Template(Base):
     language = Column(String(10), nullable=False)
     content = Column(Text, nullable=False)
     is_auto_reply = Column(Boolean, default=False)
+    category = Column(String(50), nullable=True)  # "thumbnail", "email_lead", "other"
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (Index("ix_templates_lang_active", "language", "is_active"),)

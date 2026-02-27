@@ -459,6 +459,10 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
                 if not bg_client or not bg_conv:
                     return
 
+                # Update conversation category for all types
+                bg_conv.category = category
+                bg_db.commit()
+
                 if category == "thumbnail":
                     # Detect language from message buffer
                     detected_lang = detect_language_from_messages(current_buffer)
@@ -469,17 +473,21 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
                     await send_mini_app(
                         bg_db, bg_client, target_connection_id, detected_lang
                     )
+                elif category in ("email_lead", "other"):
+                    # Send category-specific auto-reply if template exists
+                    detected_lang = detect_language_from_messages(current_buffer)
+                    log_print(f"[BG_AI] Client {target_client_id} classified as '{category}', checking for auto-reply template")
                     
-                    # Update conversation category
-                    bg_conv.category = category
-                    bg_db.commit()
-                elif category == "email_lead":
-                    # Email leads are ignored - no Mini App, just mark category
-                    log_print(f"[BG_AI] Client {target_client_id} classified as 'email_lead' - ignoring (no Mini App)")
-                    bg_conv.category = category
-                    bg_db.commit()
+                    template = get_auto_reply_template(bg_db, detected_lang, category=category)
+                    if template:
+                        log_print(f"[BG_AI] Found auto-reply template '{template.name}' for category '{category}'")
+                        await send_category_auto_reply(
+                            bg_db, bg_client, target_connection_id, template, detected_lang
+                        )
+                    else:
+                        log_print(f"[BG_AI] No auto-reply template for category '{category}', skipping")
                 else:
-                    log_print(f"[BG_AI] Client {target_client_id} classified as 'other', waiting for more messages")
+                    log_print(f"[BG_AI] Client {target_client_id} classified as '{category}', no action")
             except Exception as e:
                 log_print(f"[BG_AI] ERROR in classification task: {type(e).__name__}: {e}")
             finally:
@@ -493,6 +501,98 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"Error handling business message: {type(e).__name__}: {e}")
     finally:
         db.close()
+
+async def send_category_auto_reply(
+    db,
+    client,
+    business_connection_id: Optional[str],
+    template,
+    detected_lang: str = "en",
+):
+    """Send text-only auto-reply based on category template (for email_lead, other)."""
+    conn_id = business_connection_id or client.business_connection_id
+    log_print(f"send_category_auto_reply: client_id={client.id}, category={template.category}, lang={detected_lang}")
+    
+    # Replace variables in template
+    text = template.content
+    text = text.replace("{first_name}", client.first_name or "")
+    text = text.replace("{username}", client.username or "")
+    
+    from app.telegram.bot import get_bot
+    bot = get_bot()
+    
+    if not bot:
+        log_print("ERROR: Bot not initialized!")
+        return
+    
+    try:
+        chat_id = client.telegram_user_id
+        
+        # Send typing animation
+        typing_kwargs = {"chat_id": chat_id, "action": "typing"}
+        if conn_id:
+            typing_kwargs["business_connection_id"] = conn_id
+        
+        await bot.send_chat_action(**typing_kwargs)
+        await asyncio.sleep(2.5)
+        
+        # Build kwargs for message (text only, no Mini App button)
+        kwargs = {"chat_id": chat_id, "text": text}
+        if conn_id:
+            kwargs["business_connection_id"] = conn_id
+        
+        sent_message = await bot.send_message(**kwargs)
+        log_print(f"Category auto-reply sent successfully: {sent_message.message_id}")
+        
+        if sent_message:
+            create_message(
+                db,
+                client_id=client.id,
+                direction="out",
+                text=text,
+                telegram_message_id=sent_message.message_id,
+            )
+            
+            # Mark as processed so we don't send again
+            client.thumbnail_processed = True
+            client.last_auto_reply_at = now_georgia()
+            db.commit()
+            
+            logger.info(f"Sent category auto-reply ({template.category}) to client {client.id}")
+            
+    except Exception as e:
+        log_print(f"ERROR sending category auto-reply: {type(e).__name__}: {e}")
+        
+        # Retry without business_connection_id
+        if "Business_peer_invalid" in str(e) or "BUSINESS_PEER_INVALID" in str(e):
+            log_print("Retrying without business_connection_id...")
+            try:
+                await bot.send_chat_action(chat_id=client.telegram_user_id, action="typing")
+                await asyncio.sleep(2.5)
+                
+                sent_message = await bot.send_message(
+                    chat_id=client.telegram_user_id,
+                    text=text,
+                )
+                log_print(f"Retry successful: {sent_message.message_id}")
+                
+                create_message(
+                    db,
+                    client_id=client.id,
+                    direction="out",
+                    text=text,
+                    telegram_message_id=sent_message.message_id,
+                )
+                
+                client.thumbnail_processed = True
+                client.last_auto_reply_at = now_georgia()
+                client.business_connection_id = None
+                db.commit()
+                
+                logger.info(f"Sent category auto-reply ({template.category}) to client {client.id} (without business connection)")
+                return
+            except Exception as e2:
+                log_print(f"Retry also failed: {type(e2).__name__}: {e2}")
 
 
 async def send_mini_app(

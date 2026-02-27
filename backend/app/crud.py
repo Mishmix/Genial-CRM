@@ -355,14 +355,15 @@ def get_templates(
     return query.all()
 
 
-def get_auto_reply_template(db: Session, language: str) -> Optional[Template]:
-    """Get active auto-reply template for language."""
+def get_auto_reply_template(db: Session, language: str, category: str = "thumbnail") -> Optional[Template]:
+    """Get active auto-reply template for language and category."""
     template = (
         db.query(Template)
         .filter(
             Template.is_active == True,
             Template.is_auto_reply == True,
             Template.language == language,
+            Template.category == category,
         )
         .first()
     )
@@ -375,6 +376,7 @@ def get_auto_reply_template(db: Session, language: str) -> Optional[Template]:
                 Template.is_active == True,
                 Template.is_auto_reply == True,
                 Template.language == "en",
+                Template.category == category,
             )
             .first()
         )

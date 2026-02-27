@@ -11,15 +11,22 @@ const LANGUAGES = [
   { code: 'es', name: 'Испанский', flag: '🇪🇸' },
 ];
 
+const CATEGORIES = [
+  { code: 'thumbnail', name: 'Превью', icon: '🎨', color: 'emerald' },
+  { code: 'email_lead', name: 'Email лиды', icon: '📧', color: 'blue' },
+  { code: 'other', name: 'Другое', icon: '💬', color: 'amber' },
+];
+
 interface TemplateForm {
   name: string;
   language: string;
   content: string;
   is_auto_reply: boolean;
+  category: string;
   is_active: boolean;
 }
 
-const emptyForm: TemplateForm = { name: '', language: 'en', content: '', is_auto_reply: false, is_active: true };
+const emptyForm: TemplateForm = { name: '', language: 'en', content: '', is_auto_reply: false, category: 'thumbnail', is_active: true };
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -51,7 +58,7 @@ export default function TemplatesPage() {
   const openEditor = (template?: Template) => {
     if (template) {
       setEditingTemplate(template);
-      setForm({ name: template.name, language: template.language, content: template.content, is_auto_reply: template.is_auto_reply, is_active: template.is_active });
+      setForm({ name: template.name, language: template.language, content: template.content, is_auto_reply: template.is_auto_reply, category: template.category || 'thumbnail', is_active: template.is_active });
     } else {
       setEditingTemplate(null);
       setForm(emptyForm);
@@ -188,6 +195,11 @@ export default function TemplatesPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="badge bg-[var(--bg-hover)] text-[var(--text-secondary)] border border-[var(--border)]">{lang.flag} {lang.name}</span>
                         {template.is_auto_reply && <span className="badge badge-qualified">🤖 Авто</span>}
+                        {template.is_auto_reply && template.category && (
+                          <span className={`badge ${template.category === 'thumbnail' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : template.category === 'email_lead' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'} border`}>
+                            {CATEGORIES.find(c => c.code === template.category)?.icon} {CATEGORIES.find(c => c.code === template.category)?.name}
+                          </span>
+                        )}
                         {!template.is_active && <span className="badge badge-lost">Неактивен</span>}
                       </div>
                     </div>
@@ -254,12 +266,22 @@ export default function TemplatesPage() {
 
             <div className="flex gap-6">
               <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" checked={form.is_auto_reply} onChange={(e) => setForm({ ...form, is_auto_reply: e.target.checked })} className="w-5 h-5 rounded border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--accent)] focus:ring-[var(--accent)]" />
+                <input type="checkbox" checked={form.is_auto_reply} onChange={(e) => setForm({ ...form, is_auto_reply: e.target.checked, category: e.target.checked ? (form.category || 'thumbnail') : '' })} className="w-5 h-5 rounded border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--accent)] focus:ring-[var(--accent)]" />
                 <div>
                   <div className="font-medium">Автоответ</div>
                   <div className="text-xs text-[var(--text-muted)]">Отправлять автоматически на новые сообщения</div>
                 </div>
               </label>
+
+              {form.is_auto_reply && (
+                <div className="ml-8 flex gap-2 flex-wrap">
+                  {CATEGORIES.map(cat => (
+                    <button key={cat.code} type="button" onClick={() => setForm({ ...form, category: cat.code })} className={`btn btn-sm ${form.category === cat.code ? 'btn-primary' : 'btn-secondary'}`}>
+                      {cat.icon} {cat.name}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <label className="flex items-center gap-3 cursor-pointer">
                 <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="w-5 h-5 rounded border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--accent)] focus:ring-[var(--accent)]" />

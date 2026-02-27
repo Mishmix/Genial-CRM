@@ -134,6 +134,7 @@ class TemplateBase(BaseModel):
     language: str
     content: str
     is_auto_reply: bool = False
+    category: Optional[str] = None  # "thumbnail", "email_lead", "other"
     is_active: bool = True
 
 
@@ -146,6 +147,7 @@ class TemplateUpdate(BaseModel):
     language: Optional[str] = None
     content: Optional[str] = None
     is_auto_reply: Optional[bool] = None
+    category: Optional[str] = None
     is_active: Optional[bool] = None
 
 
