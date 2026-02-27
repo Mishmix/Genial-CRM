@@ -1,4 +1,4 @@
-"""LLM API client (Groq and NIM) for thumbnail classification and order detection."""
+"""LLM API client (Groq and Gemini REST) for thumbnail classification and order detection."""
 import json
 import re
 import httpx
@@ -90,7 +90,7 @@ async def chat_completion(
             if settings.groq_api_key:
                 return await _groq_completion(messages, model, temperature, max_completion_tokens)
             return None
-        return await _gemini_completion(messages, temperature, max_completion_tokens, thinking_level)
+        return await _gemini_completion(messages, temperature, max_completion_tokens, thinking_level="minimal")
     else:
         if not settings.groq_api_key:
             logger.warning("Groq API key not configured")
@@ -104,61 +104,68 @@ async def _gemini_completion(
     max_completion_tokens: int = 2048,
     thinking_level: str = 'minimal',
 ) -> Optional[str]:
-    """Send request to Google Gemini 3 Flash API using the SDK."""
+    """Send request to Google Gemini 3 Flash API using direct REST calls with httpx."""
     settings = get_settings()
+    api_key = getattr(settings, "gemini_api_key", None)
     
-    try:
-        from google import genai
-        from google.genai import types
-        
-        client = genai.Client(api_key=settings.gemini_api_key)
-        
-        # Extract system instruction if present
-        system_instruction = None
-        user_messages = []
-        for msg in messages:
-            if msg["role"] == "system":
-                system_instruction = msg["content"]
-            else:
-                user_messages.append(msg["content"])
-        
-        # Join user messages as a single string for simple cases
-        contents = "\n".join(user_messages)
-        
-        logger.info(f"Sending request to Gemini API (model={GEMINI_MODEL}, level=minimal)")
-        
-        if thinking_level == 'minimal':
-            # Gemini 3 Flash Thinking level configuration
-            # Requires google-genai >= 1.51.0
-            config = types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=temperature,
-                max_output_tokens=max_completion_tokens,
-                thinking_config=types.ThinkingConfig(
-                    include_thoughts=True, # For Gemini 3 Flash preview
-                    thinking_level="MINIMAL"
-                )
-            )
-        else:
-            config = types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=temperature,
-                max_output_tokens=max_completion_tokens
-            )
-        
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=contents,
-            config=config
-        )
-        
-        result = response.text
-        logger.info(f"Gemini response length: {len(result) if result else 0}")
-        return result
-        
-    except ImportError:
-        logger.error("google-genai library not installed")
+    if not api_key:
+        logger.error("Gemini API key not found in settings")
         return None
+
+    try:
+        # Construct the REST API request
+        # Endpoint for Gemini 3 Flash Preview (supports thinkingLevel)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={api_key}"
+        
+        # Prepare system instruction and contents
+        system_instruction_data = None
+        contents = []
+        
+        for msg in messages:
+            role = "user" if msg["role"] == "user" else ("model" if msg["role"] == "assistant" else "system")
+            if role == "system":
+                system_instruction_data = {
+                    "parts": [{"text": msg["content"]}]
+                }
+            else:
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": msg["content"]}]
+                })
+        
+        # Build the request body
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": max_completion_tokens,
+                "thinkingLevel": thinking_level.upper() if thinking_level else "MINIMAL"
+            }
+        }
+        
+        if system_instruction_data:
+            payload["systemInstruction"] = system_instruction_data
+
+        logger.info(f"Sending REST request to Gemini API (model={GEMINI_MODEL}, level={thinking_level})")
+        
+        async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+            response = await client.post(url, json=payload)
+            
+            if response.status_code != 200:
+                logger.error(f"Gemini API error ({response.status_code}): {response.text}")
+                return None
+            
+            data = response.json()
+            
+            # Extract content from response
+            try:
+                result = data['candidates'][0]['content']['parts'][0]['text']
+                logger.info(f"Gemini response length: {len(result) if result else 0}")
+                return result
+            except (KeyError, IndexError) as e:
+                logger.error(f"Error parsing Gemini response: {e}. Data: {json.dumps(data)}")
+                return None
+                
     except Exception as e:
         logger.error(f"Gemini API error: {type(e).__name__}: {e}")
         return None
