@@ -305,14 +305,19 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             log_print(f"[AI_ORDER] ai_analyze_after_owner_reply = {settings.ai_analyze_after_owner_reply}")
             
             if settings.ai_order_detection_enabled and settings.ai_analyze_after_owner_reply:
-                log_print(f"[AI_ORDER] Spawning background task detect_and_create_order for conversation {conversation.id}")
+                # Capture IDs into local variables to avoid DetachedInstanceError
+                target_client_id = client.id
+                target_conversation_id = conversation.id
+                
+                log_print(f"[AI_ORDER] Spawning background task detect_and_create_order for conversation {target_conversation_id}")
                 try:
                     import asyncio
                     
                     async def bg_detect():
                         bg_db = SessionLocal()
                         try:
-                            order = await detect_and_create_order(bg_db, client.id, conversation.id)
+                            # Use IDs instead of potentially detached model instances
+                            order = await detect_and_create_order(bg_db, target_client_id, target_conversation_id)
                             log_print(f"[AI_ORDER] Background Result: {order}")
                         except Exception as e:
                             log_print(f"[AI_ORDER] Background ERROR: {type(e).__name__}: {e}")
@@ -335,6 +340,10 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         # AI Order Detection - автоматически анализируем КАЖДОЕ сообщение от клиента
         # Оборачиваем в background task, чтобы не блокировать Telegram webhook (LLM может думать долго)
         if settings.ai_order_detection_enabled:
+            # Capture IDs into local variables to avoid DetachedInstanceError
+            target_client_id = client.id
+            target_conversation_id = conversation.id
+            
             log_print(f"[AI_ORDER] Spawning background auto-detect order task for incoming client message...")
             try:
                 import asyncio
@@ -342,7 +351,8 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
                 async def bg_auto_detect():
                     bg_db = SessionLocal()
                     try:
-                        order = await detect_and_create_order(bg_db, client.id, conversation.id)
+                        # Use IDs instead of potentially detached model instances
+                        order = await detect_and_create_order(bg_db, target_client_id, target_conversation_id)
                         if order:
                             log_print(f"[AI_ORDER] Background Auto-created order {order.id}")
                     except Exception as e:
