@@ -110,7 +110,6 @@ class Template(Base):
     name = Column(String(255), nullable=False)
     language = Column(String(10), nullable=False)
     content = Column(Text, nullable=False)
-    category = Column(String(50), nullable=True)
     is_auto_reply = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

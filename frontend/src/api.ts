@@ -183,7 +183,6 @@ export interface Template {
   name: string;
   language: string;
   content: string;
-  category?: string;
   is_auto_reply: boolean;
   is_active: boolean;
   created_at: string;
@@ -205,7 +204,6 @@ export async function createTemplate(data: {
   name: string;
   language: string;
   content: string;
-  category?: string;
   is_auto_reply: boolean;
   is_active: boolean;
 }) {
@@ -219,7 +217,6 @@ export async function updateTemplate(id: number, data: Partial<{
   name: string;
   language: string;
   content: string;
-  category: string;
   is_auto_reply: boolean;
   is_active: boolean;
 }>) {

@@ -15,12 +15,11 @@ interface TemplateForm {
   name: string;
   language: string;
   content: string;
-  category: string;
   is_auto_reply: boolean;
   is_active: boolean;
 }
 
-const emptyForm: TemplateForm = { name: '', language: 'en', content: '', category: 'thumbnail', is_auto_reply: false, is_active: true };
+const emptyForm: TemplateForm = { name: '', language: 'en', content: '', is_auto_reply: false, is_active: true };
 
 export default function TemplatesPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -52,14 +51,7 @@ export default function TemplatesPage() {
   const openEditor = (template?: Template) => {
     if (template) {
       setEditingTemplate(template);
-      setForm({
-        name: template.name,
-        language: template.language,
-        content: template.content,
-        category: template.category || 'thumbnail',
-        is_auto_reply: template.is_auto_reply,
-        is_active: template.is_active
-      });
+      setForm({ name: template.name, language: template.language, content: template.content, is_auto_reply: template.is_auto_reply, is_active: template.is_active });
     } else {
       setEditingTemplate(null);
       setForm(emptyForm);
@@ -195,12 +187,7 @@ export default function TemplatesPage() {
                       <h3 className="font-semibold text-lg mb-2 truncate">{template.name}</h3>
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="badge bg-[var(--bg-hover)] text-[var(--text-secondary)] border border-[var(--border)]">{lang.flag} {lang.name}</span>
-                        {template.is_auto_reply && (
-                          <>
-                            <span className="badge badge-qualified">🤖 Авто</span>
-                            <span className="badge bg-blue-500/10 text-blue-400 border border-blue-500/30">📦 {template.category || 'thumbnail'}</span>
-                          </>
-                        )}
+                        {template.is_auto_reply && <span className="badge badge-qualified">🤖 Авто</span>}
                         {!template.is_active && <span className="badge badge-lost">Неактивен</span>}
                       </div>
                     </div>
@@ -255,31 +242,6 @@ export default function TemplatesPage() {
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className={`transition-all duration-300 ${form.is_auto_reply ? 'opacity-100 h-auto' : 'opacity-0 h-0 overflow-hidden'}`}>
-              <label className="block text-sm font-semibold mb-3">Категория лида</label>
-              <div className="flex gap-2 p-1.5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border)] w-fit">
-                {[
-                  { id: 'thumbnail', label: 'Thumbnail', emoji: '🎨' },
-                  { id: 'email_lead', label: 'Email Lead', emoji: '📧' },
-                  { id: 'other', label: 'Other', emoji: '📎' },
-                ].map(cat => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setForm({ ...form, category: cat.id })}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${form.category === cat.id
-                        ? 'bg-[var(--accent)] text-white shadow-lg shadow-blue-500/20'
-                        : 'hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]'
-                      }`}
-                  >
-                    <span>{cat.emoji}</span>
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-[var(--text-muted)] mt-2">Бот отправит этот шаблон, если Gemini классифицирует запрос как {form.category}</p>
             </div>
 
             <div>

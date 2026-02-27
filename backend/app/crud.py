@@ -342,10 +342,7 @@ def get_or_create_tag(db: Session, name: str) -> Tag:
 # ============ Templates ============
 
 def get_templates(
-    db: Session, 
-    language: Optional[str] = None, 
-    is_auto_reply: Optional[bool] = None,
-    category: Optional[str] = None
+    db: Session, language: Optional[str] = None, is_auto_reply: Optional[bool] = None
 ) -> List[Template]:
     """Get templates with optional filters."""
     query = db.query(Template).filter(Template.is_active == True)
@@ -354,41 +351,33 @@ def get_templates(
         query = query.filter(Template.language == language)
     if is_auto_reply is not None:
         query = query.filter(Template.is_auto_reply == is_auto_reply)
-    if category:
-        query = query.filter(Template.category == category)
     
     return query.all()
 
 
-def get_auto_reply_template(db: Session, language: str, category: Optional[str] = None) -> Optional[Template]:
-    """Get active auto-reply template for language and optionally category."""
-    query = db.query(Template).filter(
-        Template.is_active == True,
-        Template.is_auto_reply == True,
-        Template.language == language,
-    )
-    
-    if category:
-        # Try specifically for this category
-        template = query.filter(Template.category == category).first()
-        if template:
-            return template
-
-    # Fallback to no category or generic
-    template = query.filter(or_(Template.category == None, Template.category == "")).first()
-    
-    # Final Fallback to English
-    if not template and language != "en":
-        eng_query = db.query(Template).filter(
+def get_auto_reply_template(db: Session, language: str) -> Optional[Template]:
+    """Get active auto-reply template for language."""
+    template = (
+        db.query(Template)
+        .filter(
             Template.is_active == True,
             Template.is_auto_reply == True,
-            Template.language == "en",
+            Template.language == language,
         )
-        if category:
-            template = eng_query.filter(Template.category == category).first()
-        
-        if not template:
-            template = eng_query.filter(or_(Template.category == None, Template.category == "")).first()
+        .first()
+    )
+    
+    # Fallback to English
+    if not template and language != "en":
+        template = (
+            db.query(Template)
+            .filter(
+                Template.is_active == True,
+                Template.is_auto_reply == True,
+                Template.language == "en",
+            )
+            .first()
+        )
     
     return template
 

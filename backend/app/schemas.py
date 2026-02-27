@@ -133,7 +133,6 @@ class TemplateBase(BaseModel):
     name: str
     language: str
     content: str
-    category: Optional[str] = None
     is_auto_reply: bool = False
     is_active: bool = True
 
@@ -146,7 +145,6 @@ class TemplateUpdate(BaseModel):
     name: Optional[str] = None
     language: Optional[str] = None
     content: Optional[str] = None
-    category: Optional[str] = None
     is_auto_reply: Optional[bool] = None
     is_active: Optional[bool] = None
 

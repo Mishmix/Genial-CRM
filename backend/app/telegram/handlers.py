@@ -459,22 +459,27 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
                 if not bg_client or not bg_conv:
                     return
 
-                if category:
+                if category == "thumbnail":
                     # Detect language from message buffer
                     detected_lang = detect_language_from_messages(current_buffer)
                     log_print(f"[BG_AI] Detected language from messages: {detected_lang}")
                     
-                    # Trigger auto-reply for THIS category
-                    log_print(f"[BG_AI] Triggering auto-reply for client {target_client_id} (category: {category})")
-                    await send_auto_reply(
-                        bg_db, bg_client, category, target_connection_id, detected_lang
+                    # Send Mini App!
+                    log_print(f"[BG_AI] Sending Mini App to client {target_client_id} (category: {category})")
+                    await send_mini_app(
+                        bg_db, bg_client, target_connection_id, detected_lang
                     )
                     
                     # Update conversation category
                     bg_conv.category = category
                     bg_db.commit()
+                elif category == "email_lead":
+                    # Email leads are ignored - no Mini App, just mark category
+                    log_print(f"[BG_AI] Client {target_client_id} classified as 'email_lead' - ignoring (no Mini App)")
+                    bg_conv.category = category
+                    bg_db.commit()
                 else:
-                    log_print(f"[BG_AI] No category returned, skipping auto-reply")
+                    log_print(f"[BG_AI] Client {target_client_id} classified as 'other', waiting for more messages")
             except Exception as e:
                 log_print(f"[BG_AI] ERROR in classification task: {type(e).__name__}: {e}")
             finally:
@@ -490,66 +495,65 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         db.close()
 
 
-async def send_auto_reply(
+async def send_mini_app(
     db,
     client,
-    category: str,
     business_connection_id: Optional[str],
     detected_lang: str = "en",
 ):
-    """Send automatic reply based on lead category."""
+    """Send Mini App link to client who wants thumbnails."""
     settings = get_settings()
     
     # Use client's stored business_connection_id if available
     conn_id = business_connection_id or client.business_connection_id
-    log_print(f"send_auto_reply: client_id={client.id}, category={category}, telegram_user_id={client.telegram_user_id}, business_connection_id={conn_id}")
+    log_print(f"send_mini_app: client_id={client.id}, telegram_user_id={client.telegram_user_id}, business_connection_id={conn_id}")
     
     mini_app_url = settings.mini_app_url if hasattr(settings, 'mini_app_url') else None
     
     # Use detected language from message text (not Telegram language_code)
     template_lang = detected_lang
     
-    log_print(f"Using detected language: {template_lang}, category: {category}")
+    log_print(f"Using detected language: {template_lang}")
     
-    # Get auto-reply template for this language and category
-    template = get_auto_reply_template(db, template_lang, category=category)
+    # Get auto-reply template for this language
+    template = get_auto_reply_template(db, template_lang)
     
-    # Default text if no template found
-    text = None
-    button_text = None
+    # Button text based on language
+    button_texts = {
+        "ru": "🎨 Открыть портфолио",
+        "ua": "🎨 Відкрити портфоліо",
+        "en": "🎨 Open Portfolio",
+        "es": "🎨 Abrir Portafolio",
+    }
+    button_text = button_texts.get(template_lang, button_texts["en"])
     
     if template:
-        log_print(f"Using template: {template.name} (lang={template.language}, category={template.category})")
+        log_print(f"Using template: {template.name} (lang={template.language})")
         # Replace variables in template
         text = template.content
         text = text.replace("{first_name}", client.first_name or "")
         text = text.replace("{username}", client.username or "")
         text = text.replace("{portfolio_url}", mini_app_url or settings.portfolio_url or "")
-    
-    # Fallback logic if no template exists for this category/language
-    if not text:
-        if category == "thumbnail":
-            if template_lang == "ru":
-                text = f"Привет, {client.first_name}! 👋\n\nОтлично, что вас интересуют YouTube-обложки! 🎨\n\nНажмите кнопку ниже, чтобы посмотреть портфолио и оформить заказ:"
-            elif template_lang == "ua":
-                text = f"Привіт, {client.first_name}! 👋\n\nЧудово, що вас цікавлять YouTube-обкладинки! 🎨\n\nНатисніть кнопку нижче, щоб переглянути портфоліо та оформити замовлення:"
-            else:
-                text = f"Hi, {client.first_name}! 👋\n\nGreat that you're interested in YouTube thumbnails! 🎨\n\nClick the button below to view portfolio and place an order:"
+    elif not mini_app_url:
+        # Fallback message without Mini App (language-aware)
+        if template_lang == "ru":
+            text = f"Привет, {client.first_name}! 👋\n\nСпасибо за интерес к YouTube-обложкам! Я скоро отвечу вам с деталями. 🎨"
+        elif template_lang == "ua":
+            text = f"Привіт, {client.first_name}! 👋\n\nДякую за інтерес до YouTube-обкладинок! Я скоро відповім вам з деталями. 🎨"
         else:
-            # For other categories, if no template - don't send anything (preserve current behavior)
-            log_print(f"No template for category '{category}', skipping auto-reply")
-            return
-
-    # Button logic - currently only for thumbnails
+            text = f"Hi, {client.first_name}! 👋\n\nThanks for your interest in YouTube thumbnails! I'll get back to you with details soon. 🎨"
+    else:
+        # Default message with Mini App (language-aware)
+        if template_lang == "ru":
+            text = f"Привет, {client.first_name}! 👋\n\nОтлично, что вас интересуют YouTube-обложки! 🎨\n\nНажмите кнопку ниже, чтобы посмотреть портфолио и оформить заказ:"
+        elif template_lang == "ua":
+            text = f"Привіт, {client.first_name}! 👋\n\nЧудово, що вас цікавлять YouTube-обкладинки! 🎨\n\nНатисніть кнопку нижче, щоб переглянути портфоліо та оформити замовлення:"
+        else:
+            text = f"Hi, {client.first_name}! 👋\n\nGreat that you're interested in YouTube thumbnails! 🎨\n\nClick the button below to view portfolio and place an order:"
+    
+    # Create inline keyboard with Mini App button
     keyboard = None
-    if category == "thumbnail" and mini_app_url:
-        button_texts = {
-            "ru": "🎨 Открыть портфолио",
-            "ua": "🎨 Відкрити портфоліо",
-            "en": "🎨 Open Portfolio",
-            "es": "🎨 Abrir Portafolio",
-        }
-        button_text = button_texts.get(template_lang, button_texts["en"])
+    if mini_app_url:
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(button_text, url=mini_app_url)]
         ])
@@ -563,7 +567,9 @@ async def send_auto_reply(
         return
     
     try:
+        # For Business API, we need to send to the user's chat_id with business_connection_id
         chat_id = client.telegram_user_id
+        log_print(f"Sending typing animation to chat_id={chat_id} with business_connection_id={conn_id}")
         
         # Send typing animation
         typing_kwargs = {"chat_id": chat_id, "action": "typing"}
@@ -571,8 +577,12 @@ async def send_auto_reply(
             typing_kwargs["business_connection_id"] = conn_id
         
         await bot.send_chat_action(**typing_kwargs)
-        log_print(f"Typing animation sent for {category}, waiting 2.5 seconds...")
+        log_print("Typing animation sent, waiting 2.5 seconds...")
+        
+        # Wait 2.5 seconds while showing typing animation
         await asyncio.sleep(2.5)
+        
+        log_print(f"Calling bot.send_message to chat_id={chat_id} with business_connection_id={conn_id}")
         
         # Build kwargs for message
         kwargs = {
@@ -583,11 +593,13 @@ async def send_auto_reply(
         if keyboard:
             kwargs["reply_markup"] = keyboard
         
+        # IMPORTANT: Only add business_connection_id if we have one
         if conn_id:
             kwargs["business_connection_id"] = conn_id
         
         sent_message = await bot.send_message(**kwargs)
-        log_print(f"Auto-reply ({category}) sent successfully: {sent_message.message_id}")
+        
+        log_print(f"Message sent successfully: {sent_message.message_id}")
         
         if sent_message:
             # Save outbound message
@@ -600,19 +612,20 @@ async def send_auto_reply(
             )
             
             # Mark as processed
-            client.thumbnail_processed = True # We reuse this flag for "first auto-reply sent"
+            client.thumbnail_processed = True
             client.last_auto_reply_at = now_georgia()
             db.commit()
             
-            logger.info(f"Sent auto-reply ({category}) to client {client.id}")
+            logger.info(f"Sent Mini App to client {client.id}")
         
     except Exception as e:
-        log_print(f"ERROR sending auto-reply: {type(e).__name__}: {e}")
+        log_print(f"ERROR sending message: {type(e).__name__}: {e}")
         
         # If Business_peer_invalid, try without business_connection_id
         if "Business_peer_invalid" in str(e) or "BUSINESS_PEER_INVALID" in str(e):
             log_print("Retrying without business_connection_id...")
             try:
+                # Send typing animation for retry too
                 await bot.send_chat_action(chat_id=client.telegram_user_id, action="typing")
                 await asyncio.sleep(2.5)
                 
@@ -623,6 +636,7 @@ async def send_auto_reply(
                 )
                 log_print(f"Retry successful: {sent_message.message_id}")
                 
+                # Save outbound message
                 create_message(
                     db,
                     client_id=client.id,
@@ -631,15 +645,20 @@ async def send_auto_reply(
                     telegram_message_id=sent_message.message_id,
                 )
                 
+                # Mark as processed
                 client.thumbnail_processed = True
                 client.last_auto_reply_at = now_georgia()
+                
+                # Clear invalid business_connection_id
                 client.business_connection_id = None
                 db.commit()
+                
+                logger.info(f"Sent Mini App to client {client.id} (without business connection)")
                 return
             except Exception as e2:
                 log_print(f"Retry also failed: {type(e2).__name__}: {e2}")
         
-        logger.error(f"Failed to send auto-reply to client {client.id}: {e}")
+        logger.error(f"Failed to send Mini App to client {client.id}: {e}")
 
 
 async def handle_edited_business_message(

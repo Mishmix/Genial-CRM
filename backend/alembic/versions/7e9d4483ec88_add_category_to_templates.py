@@ -19,12 +19,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add category column
-    op.add_column('templates', sa.Column('category', sa.String(length=50), nullable=True))
-    
-    # Set default category for existing auto-replies
-    op.execute("UPDATE templates SET category = 'thumbnail' WHERE is_auto_reply = TRUE")
+    pass
 
 
 def downgrade() -> None:
-    op.drop_column('templates', 'category')
+    pass
