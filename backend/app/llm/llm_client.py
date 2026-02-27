@@ -126,16 +126,19 @@ async def _gemini_completion(
         
         logger.info(f"Sending request to Gemini API (model={GEMINI_MODEL}, level=minimal)")
         
-        # Use simple string content as per SDK examples for non-multimodal
+        # Gemini 3 Flash Thinking level configuration
+        # Based on latest SDK documentation/examples, 'thinking_level' is a string within config
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=temperature,
+            max_output_tokens=max_completion_tokens,
+            thinking_level="minimal" # Use string directly
+        )
+        
         response = client.models.generate_content(
             model=GEMINI_MODEL,
             contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=temperature,
-                max_output_tokens=max_completion_tokens,
-                thinking_config=types.ThinkingConfig(thinking_level="minimal")
-            )
+            config=config
         )
         
         result = response.text
