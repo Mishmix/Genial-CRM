@@ -436,38 +436,58 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         
         log_print(f"Buffer for client {client.id}: {len(buffer)} messages: {buffer}")
         
-        # Check if auto-reply is enabled in settings
-        auto_reply_enabled = get_setting(db, "auto_reply_enabled")
-        if auto_reply_enabled == "false":
-            log_print(f"Auto-reply is DISABLED in settings, skipping classification")
-            return
+        # Move EVERYTHING heavy (Classification, Auto-reply) to a background task
+        # This makes the lead creation "instant" in the CRM
+        target_client_id = client.id
+        target_conversation_id = conversation.id
+        target_connection_id = business_connection_id
+        current_buffer = list(buffer) # Copy buffer
         
-        # Classify with LLM
-        log_print(f"Calling classify_thumbnail with buffer: {buffer}")
-        category = await classify_thumbnail(buffer)
-        log_print(f"Classification result: {category}")
-        
-        if category == "thumbnail":
-            # Detect language from message buffer
-            detected_lang = detect_language_from_messages(buffer)
-            log_print(f"Detected language from messages: {detected_lang}")
-            
-            # Send Mini App!
-            log_print(f"Sending Mini App to client {client.id} (category: {category})")
-            await send_mini_app(
-                db, client, business_connection_id, detected_lang
-            )
-            
-            # Update conversation category
-            conversation.category = category
-            db.commit()
-        elif category == "email_lead":
-            # Email leads are ignored - no Mini App, just mark category
-            log_print(f"Client {client.id} classified as 'email_lead' - ignoring (no Mini App)")
-            conversation.category = category
-            db.commit()
-        else:
-            log_print(f"Client {client.id} classified as 'other', waiting for more messages")
+        async def bg_classify_and_reply():
+            bg_db = SessionLocal()
+            try:
+                # Classify with LLM (blocks for seconds/minutes)
+                log_print(f"[BG_AI] Calling classify_thumbnail with buffer: {current_buffer}")
+                category = await classify_thumbnail(current_buffer)
+                log_print(f"[BG_AI] Classification result: {category}")
+                
+                # Fetch fresh objects in bg_db
+                from app.models import Client as ClientModel, Conversation as ConvModel
+                bg_client = bg_db.query(ClientModel).filter(ClientModel.id == target_client_id).first()
+                bg_conv = bg_db.query(ConvModel).filter(ConvModel.id == target_conversation_id).first()
+                
+                if not bg_client or not bg_conv:
+                    return
+
+                if category == "thumbnail":
+                    # Detect language from message buffer
+                    detected_lang = detect_language_from_messages(current_buffer)
+                    log_print(f"[BG_AI] Detected language from messages: {detected_lang}")
+                    
+                    # Send Mini App!
+                    log_print(f"[BG_AI] Sending Mini App to client {target_client_id} (category: {category})")
+                    await send_mini_app(
+                        bg_db, bg_client, target_connection_id, detected_lang
+                    )
+                    
+                    # Update conversation category
+                    bg_conv.category = category
+                    bg_db.commit()
+                elif category == "email_lead":
+                    # Email leads are ignored - no Mini App, just mark category
+                    log_print(f"[BG_AI] Client {target_client_id} classified as 'email_lead' - ignoring (no Mini App)")
+                    bg_conv.category = category
+                    bg_db.commit()
+                else:
+                    log_print(f"[BG_AI] Client {target_client_id} classified as 'other', waiting for more messages")
+            except Exception as e:
+                log_print(f"[BG_AI] ERROR in classification task: {type(e).__name__}: {e}")
+            finally:
+                bg_db.close()
+
+        # Fire and forget
+        import asyncio
+        asyncio.create_task(bg_classify_and_reply())
         
     except Exception as e:
         logger.error(f"Error handling business message: {type(e).__name__}: {e}")
