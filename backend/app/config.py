@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Application
     portfolio_url: str = "https://example.com/portfolio"
     auto_reply_enabled: bool = True
+    auto_reply_inactivity_days: int = 180  # Days of silence before auto-reply triggers again
     mini_app_url: str = ""  # Mini App URL for thumbnail clients
     
     # AI Order Detection
@@ -99,6 +100,7 @@ def load_settings_from_db():
                 "llm_provider": "LLM_PROVIDER",
                 "mini_app_url": "MINI_APP_URL",
                 "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
+                "auto_reply_inactivity_days": "AUTO_REPLY_INACTIVITY_DAYS",
             }
             
             for db_key, env_key in db_keys.items():

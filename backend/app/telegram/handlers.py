@@ -28,8 +28,9 @@ from app.api.websocket import broadcast_update
 
 logger = get_logger(__name__)
 
-# 6 months in days for reactivation
-REACTIVATION_DAYS = 180
+# Default inactivity threshold (used if not set in settings)
+DEFAULT_INACTIVITY_DAYS = 180
+
 
 # Store active business connections
 _business_connections: dict = {}
@@ -371,35 +372,37 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         
         if not has_active_buffer:
             # Это первое сообщение сессии - проверяем eligibility
-            # Ищем сообщения ДО текущего (исключая текущее)
-            last_client_msg = db.query(Message).filter(
+            # Ищем ЛЮБЫЕ сообщения ДО текущего (от клиента или дизайнера)
+            last_msg = db.query(Message).filter(
                 Message.client_id == client.id,
-                Message.direction == "in",
                 Message.id != new_msg.id  # исключаем текущее сообщение
             ).order_by(Message.sent_at.desc()).first()
             
-            is_new_client = last_client_msg is None
+            is_new_client = last_msg is None
             is_reactivated = False
             
-            if last_client_msg and last_client_msg.sent_at:
-                days_since_last = (now - last_client_msg.sent_at).days
-                is_reactivated = days_since_last >= REACTIVATION_DAYS
-                log_print(f"Client {client.id}: last message {days_since_last} days ago, reactivated={is_reactivated}")
+            inactivity_threshold = settings.auto_reply_inactivity_days
+            
+            if last_msg and last_msg.sent_at:
+                days_since_last = (now - last_msg.sent_at).days
+                is_reactivated = days_since_last >= inactivity_threshold
+                log_print(f"Client {client.id}: last interaction {days_since_last} days ago, inactivity_threshold={inactivity_threshold}, reactivated={is_reactivated}")
             
             # Если клиент НЕ новый и НЕ реактивирован - пропускаем
             if not is_new_client and not is_reactivated:
-                log_print(f"Client {client.id} is returning (last msg < 6 months), skipping auto-reply")
+                log_print(f"Client {client.id} is active (last interaction < {inactivity_threshold} days), skipping auto-reply")
                 db.commit()
                 return
             
             # If client was already processed but reactivated, reset for new processing
             if is_reactivated and client.thumbnail_processed:
-                log_print(f"Client {client.id} reactivated after {REACTIVATION_DAYS}+ days, resetting")
+                log_print(f"Client {client.id} reactivated after {inactivity_threshold}+ days, resetting")
                 client.thumbnail_processed = False
                 client.buffer_messages = None
                 db.commit()
             
             log_print(f"Chat eligibility: is_new={is_new_client}, is_reactivated={is_reactivated}, thumbnail_processed={client.thumbnail_processed}")
+
         else:
             log_print(f"Client {client.id} has active buffer, continuing processing")
         

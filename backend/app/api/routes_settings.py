@@ -34,6 +34,7 @@ async def get_settings(
     gemini_key = db_settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
     mini_app_url = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
     admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
+    inactivity_days = db_settings.get("auto_reply_inactivity_days") or os.environ.get("AUTO_REPLY_INACTIVITY_DAYS", "180")
     
     return {
         "portfolio_url": db_settings.get("portfolio_url", app_settings.portfolio_url),
@@ -49,6 +50,7 @@ async def get_settings(
         "gemini_api_key_set": bool(gemini_key),
         "mini_app_url": mini_app_url,
         "admin_telegram_ids": admin_ids,
+        "auto_reply_inactivity_days": int(inactivity_days),
         # Prompts from DB
         "prompt_thumbnail_classification": db_settings.get("prompt_thumbnail_classification", ""),
         "prompt_auto_reply": db_settings.get("prompt_auto_reply", ""),
@@ -74,6 +76,7 @@ async def update_setting(
             "gemini_api_key": "GEMINI_API_KEY",
             "mini_app_url": "MINI_APP_URL",
             "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
+            "auto_reply_inactivity_days": "AUTO_REPLY_INACTIVITY_DAYS",
         }
         
         if data.key in env_mapping:
