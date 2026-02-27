@@ -139,31 +139,46 @@ async def _gemini_completion(
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_completion_tokens,
-                "thinkingLevel": thinking_level.upper() if thinking_level else "MINIMAL"
+                "thinkingConfig": {
+                    "includeThoughts": True,
+                    "thinkingLevel": thinking_level.upper() if thinking_level else "MINIMAL"
+                }
             }
         }
         
         if system_instruction_data:
             payload["systemInstruction"] = system_instruction_data
 
-        logger.info(f"Sending REST request to Gemini API (model={GEMINI_MODEL}, level={thinking_level})")
+        logger.info(f"Sending REST request to Gemini API (model={GEMINI_MODEL})")
         
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             response = await client.post(url, json=payload)
             
+            # Debug log for development
             if response.status_code != 200:
                 logger.error(f"Gemini API error ({response.status_code}): {response.text}")
                 return None
             
-            data = response.json()
+            try:
+                data = response.json()
+            except Exception as e:
+                logger.error(f"Gemini JSON parse error: {e}. Raw: {response.text[:500]}")
+                return None
             
             # Extract content from response
             try:
-                result = data['candidates'][0]['content']['parts'][0]['text']
-                logger.info(f"Gemini response length: {len(result) if result else 0}")
-                return result
+                # Gemini REST response structure check
+                if 'candidates' in data and data['candidates']:
+                    candidate = data['candidates'][0]
+                    if 'content' in candidate and 'parts' in candidate['content']:
+                        result = candidate['content']['parts'][0]['text']
+                        logger.info(f"Gemini response success (length: {len(result) if result else 0})")
+                        return result
+                
+                logger.error(f"Unexpected Gemini response structure. Data: {json.dumps(data)[:1000]}")
+                return None
             except (KeyError, IndexError) as e:
-                logger.error(f"Error parsing Gemini response: {e}. Data: {json.dumps(data)}")
+                logger.error(f"Error parsing Gemini response: {e}. Data: {json.dumps(data)[:1000]}")
                 return None
                 
     except Exception as e:
