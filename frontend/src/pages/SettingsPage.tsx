@@ -367,7 +367,7 @@ export default function SettingsPage() {
                   <span className="font-semibold text-[var(--text-primary)]">Groq</span>
                 </label>
 
-                <label className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${settings.llm_provider === 'nim' ? 'border-emerald-500 bg-emerald-500/10' : 'border-[var(--border)] hover:border-[var(--text-muted)]'}`}>
+                <label className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-xl border-2 cursor-pointer transition-all ${settings.llm_provider === 'gemini' ? 'border-emerald-500 bg-emerald-500/10' : 'border-[var(--border)] hover:border-[var(--text-muted)]'}`}>
                   <input
                     type="radio"
                     name="llm_provider"

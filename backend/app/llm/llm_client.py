@@ -139,10 +139,7 @@ async def _gemini_completion(
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_completion_tokens,
-                "thinkingConfig": {
-                    "includeThoughts": True,
-                    "thinkingLevel": thinking_level.upper() if thinking_level else "MINIMAL"
-                }
+                "thinkingLevel": thinking_level.upper() if thinking_level else "MINIMAL"
             }
         }
         

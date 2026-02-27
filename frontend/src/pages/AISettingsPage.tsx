@@ -151,47 +151,45 @@ export default function AISettingsPage() {
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
                 <div className="font-semibold text-emerald-400 mb-2 flex items-center gap-2">
-                  <span>✅</span> "thumbnail" → Mini App
+                  <span>🎨</span> "thumbnail"
                 </div>
+                <p className="text-xs text-[var(--text-secondary)] mb-2">Авто-ответ с кнопкой портфолио (по умолчанию)</p>
                 <ul className="text-sm text-[var(--text-secondary)] space-y-1">
                   <li>• "Сколько стоит превью?"</li>
                   <li>• "Need YouTube thumbnail"</li>
-                  <li>• "обкладинка для відео"</li>
-                  <li>• "шапка и превью"</li>
                 </ul>
               </div>
 
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30">
-                <div className="font-semibold text-red-400 mb-2 flex items-center gap-2">
-                  <span>🚫</span> "email_lead" → Игнор
+              <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30">
+                <div className="font-semibold text-blue-400 mb-2 flex items-center gap-2">
+                  <span>📧</span> "email_lead"
                 </div>
+                <p className="text-xs text-[var(--text-secondary)] mb-2">Авто-ответ по шаблону (если настроен)</p>
                 <ul className="text-sm text-[var(--text-secondary)] space-y-1">
                   <li>• "Вы мне писали на почту"</li>
                   <li>• "Пишу с рассылки"</li>
-                  <li>• "Получил ваше письмо"</li>
-                  <li>• "Увидел предложение"</li>
                 </ul>
               </div>
 
               <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
                 <div className="font-semibold text-amber-400 mb-2 flex items-center gap-2">
-                  <span>⏸️</span> "other" → Ждать ещё
+                  <span>📎</span> "other"
                 </div>
+                <p className="text-xs text-[var(--text-secondary)] mb-2">Авто-ответ по шаблону (если настроен)</p>
                 <ul className="text-sm text-[var(--text-secondary)] space-y-1">
                   <li>• "Привет"</li>
                   <li>• "Вы дизайнер?"</li>
-                  <li>• "Нужен баннер"</li>
-                  <li>• "оформление канала"</li>
                 </ul>
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] text-sm text-[var(--text-secondary)]">
-              <strong className="text-[var(--text-primary)]">Условия остановки:</strong>
+              <strong className="text-[var(--text-primary)]">Логика автоответов:</strong>
               <ul className="mt-2 space-y-1">
-                <li>• Если вы ответили клиенту → бот перестаёт анализировать навсегда</li>
-                <li>• Если Mini App отправлен → бот перестаёт анализировать навсегда</li>
-                <li>• Обрабатываются только новые чаты или неактивные 6+ месяцев</li>
+                <li>• Бот ищет активный шаблон для текущей категории и языка</li>
+                <li>• Если шаблон не найден → для "thumbnail" отправится текст по умолчанию, для остальных ничего</li>
+                <li>• Автоответ отправляется только ОДИН раз за всё время общения с клиентом</li>
+                <li>• Если вы уже ответили клиенту вручную → бот не будет мешать</li>
               </ul>
             </div>
           </div>

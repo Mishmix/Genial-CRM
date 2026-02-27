@@ -14,7 +14,7 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
-  
+
   const response = await fetch(url, {
     ...options,
     credentials: 'include',
@@ -23,12 +23,12 @@ async function request<T>(
       ...options.headers,
     },
   });
-  
+
   if (!response.ok) {
     const error: ApiError = await response.json().catch(() => ({ detail: 'Request failed' }));
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 
@@ -122,7 +122,7 @@ export async function getClients(params: {
   if (params.has_unread !== undefined) query.set('has_unread', String(params.has_unread));
   if (params.tag_ids) query.set('tag_ids', params.tag_ids);
   if (params.include_archived !== undefined) query.set('include_archived', String(params.include_archived));
-  
+
   return request<{ items: Client[]; total: number; page: number; per_page: number }>(
     `/clients?${query}`
   );
@@ -136,9 +136,9 @@ export async function getClient(id: number) {
   return request<ClientDetail>(`/clients/${id}`);
 }
 
-export async function updateClient(id: number, data: { 
-  status?: string; 
-  notes?: string; 
+export async function updateClient(id: number, data: {
+  status?: string;
+  notes?: string;
   tag_ids?: number[];
   is_archived?: boolean;
   lost_reason?: string;
@@ -183,6 +183,7 @@ export interface Template {
   name: string;
   language: string;
   content: string;
+  category?: string;
   is_auto_reply: boolean;
   is_active: boolean;
   created_at: string;
@@ -192,7 +193,7 @@ export async function getTemplates(params: { language?: string; is_auto_reply?: 
   const query = new URLSearchParams();
   if (params.language) query.set('language', params.language);
   if (params.is_auto_reply !== undefined) query.set('is_auto_reply', String(params.is_auto_reply));
-  
+
   return request<{ items: Template[] }>(`/templates?${query}`);
 }
 
@@ -204,6 +205,7 @@ export async function createTemplate(data: {
   name: string;
   language: string;
   content: string;
+  category?: string;
   is_auto_reply: boolean;
   is_active: boolean;
 }) {
@@ -217,6 +219,7 @@ export async function updateTemplate(id: number, data: Partial<{
   name: string;
   language: string;
   content: string;
+  category: string;
   is_auto_reply: boolean;
   is_active: boolean;
 }>) {
@@ -258,7 +261,7 @@ export async function getReminders(params: { client_id?: number; is_completed?: 
   const query = new URLSearchParams();
   if (params.client_id) query.set('client_id', String(params.client_id));
   if (params.is_completed !== undefined) query.set('is_completed', String(params.is_completed));
-  
+
   return request<Reminder[]>(`/reminders?${query}`);
 }
 
@@ -341,7 +344,7 @@ export async function getOrders(params: { client_id?: number; conversation_id?: 
   if (params.client_id) query.set('client_id', String(params.client_id));
   if (params.conversation_id) query.set('conversation_id', String(params.conversation_id));
   if (params.status) query.set('status', params.status);
-  
+
   return request<{ items: Order[]; total: number }>(`/orders?${query}`);
 }
 
@@ -494,7 +497,7 @@ export async function getConversations(params: {
   if (params.include_deleted !== undefined) query.set('include_deleted', String(params.include_deleted));
   if (params.skip !== undefined) query.set('skip', String(params.skip));
   if (params.limit !== undefined) query.set('limit', String(params.limit));
-  
+
   return request<{ items: Conversation[]; total: number }>(`/conversations?${query}`);
 }
 
@@ -622,20 +625,20 @@ export async function getImportStatus() {
 export async function importTelegramExport(file: File) {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const url = `${API_BASE}/import/telegram/sync`;
-  
+
   const response = await fetch(url, {
     method: 'POST',
     credentials: 'include',
     body: formData,
   });
-  
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Import failed' }));
     throw new Error(error.detail || `HTTP ${response.status}`);
   }
-  
+
   return response.json();
 }
 
