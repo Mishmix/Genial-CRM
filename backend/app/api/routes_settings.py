@@ -32,6 +32,7 @@ async def get_settings(
     llm_provider = db_settings.get("llm_provider") or os.environ.get("LLM_PROVIDER", "groq")
     groq_key = db_settings.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
     nim_key = db_settings.get("nim_api_key") or os.environ.get("NIM_API_KEY", "")
+    gemini_key = db_settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
     mini_app_url = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
     admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
     
@@ -47,6 +48,8 @@ async def get_settings(
         "groq_api_key_set": bool(groq_key),
         "nim_api_key": mask_key(nim_key),
         "nim_api_key_set": bool(nim_key),
+        "gemini_api_key": mask_key(gemini_key),
+        "gemini_api_key_set": bool(gemini_key),
         "mini_app_url": mini_app_url,
         "admin_telegram_ids": admin_ids,
         # Prompts from DB
@@ -72,6 +75,7 @@ async def update_setting(
             "llm_provider": "LLM_PROVIDER",
             "groq_api_key": "GROQ_API_KEY",
             "nim_api_key": "NIM_API_KEY",
+            "gemini_api_key": "GEMINI_API_KEY",
             "mini_app_url": "MINI_APP_URL",
             "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
         }
@@ -127,12 +131,13 @@ async def get_bot_status(
     llm_provider = db_settings.get("llm_provider") or os.environ.get("LLM_PROVIDER", "groq")
     groq_key = db_settings.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
     nim_key = db_settings.get("nim_api_key") or os.environ.get("NIM_API_KEY", "")
+    gemini_key = db_settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
     mini_app = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
     admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
     
     return {
         "bot_configured": bool(token),
-        "llm_configured": bool(groq_key) if llm_provider == "groq" else bool(nim_key),
+        "llm_configured": bool(groq_key) if llm_provider == "groq" else (bool(gemini_key) if llm_provider == "gemini" else bool(nim_key)),
         "groq_configured": bool(groq_key),
         "mini_app_configured": bool(mini_app),
         "admin_configured": bool(admin_ids),
