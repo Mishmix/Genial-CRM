@@ -28,10 +28,9 @@ async def get_settings(
         return key[:4] + "..." + key[-4:]
     
     # Get API keys from DB (with fallback to env vars for migration)
-    telegram_token = db_settings.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    token = db_settings.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
     llm_provider = db_settings.get("llm_provider") or os.environ.get("LLM_PROVIDER", "groq")
     groq_key = db_settings.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
-    nim_key = db_settings.get("nim_api_key") or os.environ.get("NIM_API_KEY", "")
     gemini_key = db_settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
     mini_app_url = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
     admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
@@ -41,13 +40,11 @@ async def get_settings(
         "auto_reply_enabled": db_settings.get("auto_reply_enabled", "true") == "true",
         "social_proof": db_settings.get("social_proof", ""),
         # API Keys (masked)
-        "telegram_bot_token": mask_key(telegram_token),
-        "telegram_bot_token_set": bool(telegram_token),
+        "telegram_bot_token": mask_key(token),
+        "telegram_bot_token_set": bool(token),
         "llm_provider": llm_provider,
         "groq_api_key": mask_key(groq_key),
         "groq_api_key_set": bool(groq_key),
-        "nim_api_key": mask_key(nim_key),
-        "nim_api_key_set": bool(nim_key),
         "gemini_api_key": mask_key(gemini_key),
         "gemini_api_key_set": bool(gemini_key),
         "mini_app_url": mini_app_url,
@@ -74,7 +71,6 @@ async def update_setting(
             "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
             "llm_provider": "LLM_PROVIDER",
             "groq_api_key": "GROQ_API_KEY",
-            "nim_api_key": "NIM_API_KEY",
             "gemini_api_key": "GEMINI_API_KEY",
             "mini_app_url": "MINI_APP_URL",
             "admin_telegram_ids": "ADMIN_TELEGRAM_IDS",
@@ -130,14 +126,13 @@ async def get_bot_status(
     token = db_settings.get("telegram_bot_token") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
     llm_provider = db_settings.get("llm_provider") or os.environ.get("LLM_PROVIDER", "groq")
     groq_key = db_settings.get("groq_api_key") or os.environ.get("GROQ_API_KEY", "")
-    nim_key = db_settings.get("nim_api_key") or os.environ.get("NIM_API_KEY", "")
     gemini_key = db_settings.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY", "")
     mini_app = db_settings.get("mini_app_url") or os.environ.get("MINI_APP_URL", "")
     admin_ids = db_settings.get("admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
     
     return {
         "bot_configured": bool(token),
-        "llm_configured": bool(groq_key) if llm_provider == "groq" else (bool(gemini_key) if llm_provider == "gemini" else bool(nim_key)),
+        "llm_configured": bool(groq_key) if llm_provider == "groq" else bool(gemini_key),
         "groq_configured": bool(groq_key),
         "mini_app_configured": bool(mini_app),
         "admin_configured": bool(admin_ids),

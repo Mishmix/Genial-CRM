@@ -90,7 +90,7 @@ async def chat_completion(
             if settings.groq_api_key:
                 return await _groq_completion(messages, model, temperature, max_completion_tokens)
             return None
-        return await _gemini_completion(messages, temperature, max_completion_tokens)
+        return await _gemini_completion(messages, temperature, max_completion_tokens, thinking_level)
     else:
         if not settings.groq_api_key:
             logger.warning("Groq API key not configured")
@@ -102,6 +102,7 @@ async def _gemini_completion(
     messages: List[Dict[str, str]],
     temperature: float = 0.2,
     max_completion_tokens: int = 2048,
+    thinking_level: str = 'minimal',
 ) -> Optional[str]:
     """Send request to Google Gemini 3 Flash API using the SDK."""
     settings = get_settings()
@@ -126,14 +127,24 @@ async def _gemini_completion(
         
         logger.info(f"Sending request to Gemini API (model={GEMINI_MODEL}, level=minimal)")
         
-        # Gemini 3 Flash Thinking level configuration
-        # Based on latest SDK documentation/examples, 'thinking_level' is a string within config
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=temperature,
-            max_output_tokens=max_completion_tokens,
-            thinking_level="minimal" # Use string directly
-        )
+        if thinking_level == 'minimal':
+            # Gemini 3 Flash Thinking level configuration
+            # Requires google-genai >= 1.51.0
+            config = types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=temperature,
+                max_output_tokens=max_completion_tokens,
+                thinking_config=types.ThinkingConfig(
+                    include_thoughts=True, # For Gemini 3 Flash preview
+                    thinking_level="MINIMAL"
+                )
+            )
+        else:
+            config = types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=temperature,
+                max_output_tokens=max_completion_tokens
+            )
         
         response = client.models.generate_content(
             model=GEMINI_MODEL,
