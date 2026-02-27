@@ -337,33 +337,6 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         # Client message - check if we should process
         client.last_client_message_at = now_georgia()
         
-        # AI Order Detection - автоматически анализируем КАЖДОЕ сообщение от клиента
-        # Оборачиваем в background task, чтобы не блокировать Telegram webhook (LLM может думать долго)
-        if settings.ai_order_detection_enabled:
-            # Capture IDs into local variables to avoid DetachedInstanceError
-            target_client_id = client.id
-            target_conversation_id = conversation.id
-            
-            log_print(f"[AI_ORDER] Spawning background auto-detect order task for incoming client message...")
-            try:
-                import asyncio
-                
-                async def bg_auto_detect():
-                    bg_db = SessionLocal()
-                    try:
-                        # Use IDs instead of potentially detached model instances
-                        order = await detect_and_create_order(bg_db, target_client_id, target_conversation_id)
-                        if order:
-                            log_print(f"[AI_ORDER] Background Auto-created order {order.id}")
-                    except Exception as e:
-                        log_print(f"[AI_ORDER] Background Auto-detection error: {type(e).__name__}: {e}")
-                    finally:
-                        bg_db.close()
-                        
-                asyncio.create_task(bg_auto_detect())
-            except Exception as e:
-                log_print(f"[AI_ORDER] Failed to spawn background auto-detect task: {type(e).__name__}: {e}")
-        
         # Skip if already processed (Mini App sent)
         if client.thumbnail_processed:
             log_print(f"Client {client.id} already processed, skipping auto-reply")
@@ -375,6 +348,14 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
             log_print(f"Owner already replied to client {client.id}, skipping auto-reply")
             db.commit()
             return
+
+        # HARD GUARD: Skip if this client is definitely not new
+        # (check total_orders or count of messages before this session)
+        if (client.total_orders or 0) > 0:
+            log_print(f"Client {client.id} has past orders ({client.total_orders}), skipping auto-reply")
+            db.commit()
+            return
+
         
         # Check if chat is eligible for processing
         # Auto-reply срабатывает если:
@@ -777,10 +758,15 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
     """
     log_print(f"[DETECT_ORDER] Starting for client={client_id}, conversation={conversation_id}")
 
-    # Получаем сообщения обращения
+    # Получаем сообщения за последние 3 дня
+    now = now_georgia()
+    three_days_ago = now - timedelta(days=3)
+    
     messages = db.query(Message).filter(
-        Message.conversation_id == conversation_id
+        Message.conversation_id == conversation_id,
+        Message.sent_at >= three_days_ago
     ).order_by(Message.sent_at.asc()).all()
+
 
     log_print(f"[DETECT_ORDER] Found {len(messages)} messages in conversation")
 
