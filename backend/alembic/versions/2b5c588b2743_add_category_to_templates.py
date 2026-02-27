@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -19,11 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add category column to templates
-    op.add_column('templates', sa.Column('category', sa.String(50), nullable=True))
+    # Check if column already exists (idempotent)
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    columns = [c['name'] for c in inspector.get_columns('templates')]
     
-    # Set existing auto-reply templates to "thumbnail" category
-    op.execute("UPDATE templates SET category = 'thumbnail' WHERE is_auto_reply = true")
+    if 'category' not in columns:
+        op.add_column('templates', sa.Column('category', sa.String(50), nullable=True))
+    
+    # Set existing auto-reply templates to "thumbnail" category (safe to run multiple times)
+    op.execute("UPDATE templates SET category = 'thumbnail' WHERE is_auto_reply = true AND category IS NULL")
 
 
 def downgrade() -> None:
