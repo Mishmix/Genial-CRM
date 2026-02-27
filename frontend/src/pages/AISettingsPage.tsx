@@ -59,7 +59,7 @@ export default function AISettingsPage() {
   const [settings, setSettings] = useState({
     llm_provider: 'groq',
     groq_api_key_set: false,
-    nim_api_key_set: false,
+    gemini_api_key_set: false,
     prompt_thumbnail_classification: DEFAULT_PROMPTS.thumbnail_classification,
   });
   const [loading, setLoading] = useState(true);
@@ -120,17 +120,17 @@ export default function AISettingsPage() {
         {/* Status */}
         <div className="card p-5 mb-6">
           <div className="flex items-center gap-4">
-            <div className={`w-3 h-3 rounded-full ${(settings.llm_provider === 'nim' ? settings.nim_api_key_set : settings.groq_api_key_set) ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
+            <div className={`w-3 h-3 rounded-full ${(settings.llm_provider === 'gemini' ? settings.gemini_api_key_set : settings.groq_api_key_set) ? 'bg-emerald-500' : 'bg-red-500'} animate-pulse`} />
             <span className="text-sm text-[var(--text-secondary)]">
-              {settings.llm_provider === 'nim'
-                ? (settings.nim_api_key_set
-                  ? 'NVIDIA NIM API настроен — используется Kimi k2.5'
-                  : 'NVIDIA NIM API не настроен — перейдите в Настройки для добавления ключа')
+              {settings.llm_provider === 'gemini'
+                ? (settings.gemini_api_key_set
+                  ? 'Google Gemini API настроен — используется Gemini 3 Flash'
+                  : 'Google Gemini API не настроен — перейдите в Настройки для добавления ключа')
                 : (settings.groq_api_key_set
                   ? 'Groq API настроен — используется openai/gpt-oss-120b'
                   : 'Groq API не настроен — перейдите в Настройки для добавления ключа')}
             </span>
-            {!(settings.llm_provider === 'nim' ? settings.nim_api_key_set : settings.groq_api_key_set) && (
+            {!(settings.llm_provider === 'gemini' ? settings.gemini_api_key_set : settings.groq_api_key_set) && (
               <a href="/settings" className="btn btn-sm btn-primary ml-auto">Настроить →</a>
             )}
           </div>
@@ -203,7 +203,7 @@ export default function AISettingsPage() {
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg">🎯</div>
                 <div>
                   <h3 className="font-semibold text-lg text-[var(--text-primary)]">Промпт классификации</h3>
-                  <p className="text-sm text-[var(--text-secondary)]">Системный промпт для {settings.llm_provider === 'nim' ? 'Kimi k2.5' : 'GPT-OSS-120B'}</p>
+                  <p className="text-sm text-[var(--text-secondary)]">Системный промпт для {settings.llm_provider === 'gemini' ? 'Gemini 3 Flash' : 'GPT-OSS-120B'}</p>
                 </div>
               </div>
               <button onClick={handleResetPrompt} className="btn btn-ghost btn-sm">↺ Сбросить</button>
