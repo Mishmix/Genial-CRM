@@ -155,7 +155,7 @@ async def lifespan(app: FastAPI):
                 logger.info("Telegram bot started (polling mode)")
             else:
                 if settings.webhook_url:
-                    webhook_url = f"{settings.webhook_url.rstrip('/')}/api/telegram/webhook"
+                    webhook_url = f"{settings.webhook_url.rstrip('/')}/telegram/webhook"
                     await telegram_app.bot.set_webhook(webhook_url)
                     logger.info(f"Telegram bot initialized (webhook mode) at {webhook_url}")
                 else:
