@@ -18,6 +18,7 @@ export default function SettingsPage() {
     // App settings
     portfolio_url: '',
     auto_reply_enabled: true,
+    auto_reply_inactivity_days: 180,
   });
   const [todoistConfig, setTodoistConfig] = useState({
     api_token_masked: '',
@@ -534,6 +535,42 @@ export default function SettingsPage() {
               <button onClick={() => handleToggle('auto_reply_enabled', !settings.auto_reply_enabled)} className={`toggle ${settings.auto_reply_enabled ? 'active' : ''}`} />
             </div>
           </div>
+
+          {/* === AUTO-REPLY INACTIVITY GUARD === */}
+          <div className="card p-6 stagger-item">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-blue-500/10 rounded-[20px]" />
+            <div className="relative z-10">
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-3xl shadow-lg" style={{ boxShadow: '0 8px 30px -5px rgba(79, 70, 229, 0.5)' }}>⏳</div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg text-[var(--text-primary)]">Период неактивности для автоответа (v2)</h3>
+                  <p className="text-sm text-[var(--text-secondary)]">Если в течение этого периода была ЛЮБАЯ переписка (от вас или от клиента), бот НЕ будет отправлять автоответ.</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <div className="flex-1 flex items-center gap-3">
+                  <input
+                    type="number"
+                    value={newValues['auto_reply_inactivity_days'] ?? settings.auto_reply_inactivity_days}
+                    onChange={(e) => setNewValues(prev => ({ ...prev, auto_reply_inactivity_days: e.target.value }))}
+                    className="input flex-1"
+                    placeholder="180"
+                    min="1"
+                  />
+                  <span className="text-[var(--text-secondary)] font-medium">дней</span>
+                </div>
+                <button
+                  onClick={() => handleSave('auto_reply_inactivity_days', String(newValues['auto_reply_inactivity_days'] ?? settings.auto_reply_inactivity_days))}
+                  disabled={saving === 'auto_reply_inactivity_days'}
+                  className="btn btn-primary min-w-[110px]"
+                >
+                  {saving === 'auto_reply_inactivity_days' ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : saved === 'auto_reply_inactivity_days' ? '✓ Сохранено' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+          </div>
+
 
           {/* === PORTFOLIO URL === */}
           <div className="card p-6 stagger-item">
