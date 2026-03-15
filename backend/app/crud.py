@@ -752,28 +752,24 @@ def seed_default_tags(db: Session):
 
 # ============ AI Order Detection ============
 
-def find_recent_order_to_update(
+def find_pending_ai_order(
     db: Session,
     client_id: int,
     service_type: str,
     conversation_id: int,
-    hours_window: int = 2,
 ) -> Optional[Order]:
     """
-    Ищет существующий AI-заказ той же переписки/типа услуги в окне N часов.
+    Ищет существующий pending AI-заказ той же переписки/типа услуги.
     Используется чтобы ОБНОВИТЬ детали заказа вместо создания дубликата.
+    НЕТ ограничения по времени — если в этой переписке уже
+    есть pending заказ на ту же услугу, он будет обновлён.
     """
-    from datetime import datetime, timedelta
-    # ВАЖНО: Order.created_at хранится как UTC naive datetime (default=datetime.utcnow),
-    # поэтому cutoff тоже должен быть UTC, а не Georgia time.
-    cutoff = datetime.utcnow() - timedelta(hours=hours_window)
     return db.query(Order).filter(
         Order.client_id == client_id,
         Order.service_type == service_type,
         Order.conversation_id == conversation_id,
         Order.status == "pending",
         Order.source == "ai",
-        Order.created_at >= cutoff,
     ).order_by(Order.created_at.desc()).first()
 
 
@@ -809,9 +805,9 @@ def create_ai_order(
     service_type = order_data.get("service_type", "thumbnail")
     quantity = order_data.get("quantity", 1)
 
-    # Ищем существующий заказ той же переписки для обновления
-    existing = find_recent_order_to_update(
-        db, client_id, service_type, conversation_id, hours_window=2
+    # Ищем существующий pending заказ той же переписки для обновления
+    existing = find_pending_ai_order(
+        db, client_id, service_type, conversation_id
     )
 
     if existing:

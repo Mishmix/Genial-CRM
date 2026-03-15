@@ -758,6 +758,13 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
     """
     Анализирует переписку и создаёт/обновляет заказ если найден.
     Вызывается автоматически при получении сообщений.
+    
+    Логика:
+    - AI детектирует заказ и возвращает is_confirmed (подтверждённый vs запрос)
+    - Для НОВЫХ клиентов (без завершённых заказов) Todoist-задача создаётся ТОЛЬКО
+      если заказ подтверждён (is_confirmed=true) И владелец ответил ≥2 раз в переписке
+    - Для ПОСТОЯННЫХ клиентов (есть завершённые заказы) задача создаётся сразу
+    - Если Todoist-задача уже существует, она ОБНОВЛЯЕТСЯ (не удаляется/пересоздаётся)
     """
     log_print(f"[DETECT_ORDER] Starting for client={client_id}, conversation={conversation_id}")
 
@@ -769,7 +776,6 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         Message.conversation_id == conversation_id,
         Message.sent_at >= three_days_ago
     ).order_by(Message.sent_at.asc()).all()
-
 
     log_print(f"[DETECT_ORDER] Found {len(messages)} messages in conversation")
 
@@ -810,9 +816,10 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         log_print(f"[DETECT_ORDER] No order detected for conversation {conversation_id}")
         return None
 
-    log_print(f"[DETECT_ORDER] AI detected order: {order_data}")
+    is_confirmed = order_data.get("is_confirmed", False)
+    log_print(f"[DETECT_ORDER] AI detected order: {order_data}, is_confirmed={is_confirmed}")
 
-    # Создаём или обновляем заказ
+    # Создаём или обновляем заказ в CRM (всегда — даже если не подтверждён)
     log_print(f"[DETECT_ORDER] Calling create_ai_order()...")
     order = create_ai_order(db, client_id, conversation_id, order_data)
 
@@ -820,66 +827,111 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         was_updated = getattr(order, '_was_updated', False)
         log_print(f"[DETECT_ORDER] {'Updated' if was_updated else 'Created'} AI order {order.id} for client {client_id}")
 
-        # Sync Todoist task if configured
-        try:
-            from app.integrations.todoist import create_task_from_order, TodoistClient
+        # === GUARD: Проверяем, нужно ли создавать Todoist-задачу ===
+        from app.models import Client as ClientModel, Order as OrderModel
+        client_obj = db.query(ClientModel).filter(ClientModel.id == client_id).first()
+        
+        # Считаем завершённые заказы клиента (признак постоянного клиента)
+        completed_orders_count = db.query(OrderModel).filter(
+            OrderModel.client_id == client_id,
+            OrderModel.status == "completed"
+        ).count()
+        is_returning_client = completed_orders_count > 0
+        
+        # Считаем ответы владельца в этой переписке
+        owner_replies_count = sum(1 for m in messages if m.direction == "out")
+        
+        log_print(f"[TODOIST_GUARD] is_returning_client={is_returning_client} (completed_orders={completed_orders_count}), "
+                   f"owner_replies={owner_replies_count}, is_confirmed={is_confirmed}")
+        
+        # Для новых клиентов: задача в Todoist только если подтверждено И 2+ ответа владельца
+        should_sync_todoist = True
+        if not is_returning_client:
+            if not is_confirmed:
+                log_print(f"[TODOIST_GUARD] New client, order NOT confirmed by AI — skipping Todoist")
+                should_sync_todoist = False
+            elif owner_replies_count < 2:
+                log_print(f"[TODOIST_GUARD] New client, owner replied only {owner_replies_count} time(s) — skipping Todoist")
+                should_sync_todoist = False
+            else:
+                log_print(f"[TODOIST_GUARD] New client but order confirmed + {owner_replies_count} owner replies — creating Todoist task")
+        else:
+            log_print(f"[TODOIST_GUARD] Returning client — syncing Todoist task")
 
-            todoist_token = get_setting(db, "todoist_api_token")
-            todoist_project = get_setting(db, "todoist_project_id")
-            todoist_today = get_setting(db, "todoist_section_today_id") or ""
-            todoist_not_today = get_setting(db, "todoist_section_not_today_id") or ""
-            todoist_enabled_flag = get_setting(db, "todoist_enabled")
+        # Sync Todoist task if configured and allowed
+        if should_sync_todoist:
+            try:
+                from app.integrations.todoist import create_task_from_order, TodoistClient, SERVICE_NAMES
+                from datetime import date
 
-            if todoist_token and todoist_project and todoist_enabled_flag != "false":
-                from app.models import Client as ClientModel
-                client_obj = db.query(ClientModel).filter(ClientModel.id == client_id).first()
-                client_name = f"{client_obj.first_name} {client_obj.last_name or ''}".strip() if client_obj else "Клиент"
+                todoist_token = get_setting(db, "todoist_api_token")
+                todoist_project = get_setting(db, "todoist_project_id")
+                todoist_today = get_setting(db, "todoist_section_today_id") or ""
+                todoist_not_today = get_setting(db, "todoist_section_not_today_id") or ""
+                todoist_enabled_flag = get_setting(db, "todoist_enabled")
 
-                # Проверяем нужно ли обновить Todoist задачу
-                need_todoist_update = False
-                if was_updated and order.todoist_task_id:
-                    old_quantity = getattr(order, '_old_quantity', None)
-                    old_deadline = getattr(order, '_old_deadline', None)
-                    values_changed = (
-                        old_quantity != order.quantity or
-                        old_deadline != order.deadline_date
-                    )
-                    if values_changed:
-                        need_todoist_update = True
-                        log_print(f"[TODOIST] Values changed (qty: {old_quantity}->{order.quantity}, deadline: {old_deadline}->{order.deadline_date}), will recreate task")
-                    else:
-                        log_print(f"[TODOIST] Values unchanged, skipping task recreate for order {order.id}")
+                if todoist_token and todoist_project and todoist_enabled_flag != "false":
+                    client_name = f"{client_obj.first_name} {client_obj.last_name or ''}".strip() if client_obj else "Клиент"
 
-                if not was_updated or not order.todoist_task_id:
-                    # Новый заказ — создаём задачу
-                    need_todoist_update = True
-
-                if need_todoist_update:
-                    # Удаляем старую задачу если была
                     if was_updated and order.todoist_task_id:
-                        try:
+                        # === UPDATE existing Todoist task (not delete+create) ===
+                        old_quantity = getattr(order, '_old_quantity', None)
+                        old_deadline = getattr(order, '_old_deadline', None)
+                        values_changed = (
+                            old_quantity != order.quantity or
+                            old_deadline != order.deadline_date
+                        )
+                        if values_changed:
+                            log_print(f"[TODOIST] Values changed (qty: {old_quantity}->{order.quantity}, "
+                                       f"deadline: {old_deadline}->{order.deadline_date}), updating task")
                             tc = TodoistClient(todoist_token)
-                            await tc.delete_task(order.todoist_task_id)
-                            order.todoist_task_id = None
-                            db.commit()
-                            log_print(f"[TODOIST] Deleted old task for updated order {order.id}")
-                        except Exception as del_e:
-                            log_print(f"[TODOIST] Failed to delete old task: {del_e}")
-
-                    log_print(f"[TODOIST] {'Re-creating' if was_updated else 'Creating'} task for order {order.id}...")
-                    result = await create_task_from_order(
-                        todoist_token, todoist_project, todoist_today, todoist_not_today,
-                        client_name, order.service_type, order.quantity, order.deadline_date
-                    )
-
-                    if result and result.get("id"):
-                        order.todoist_task_id = result["id"]
-                        db.commit()
-                        log_print(f"[TODOIST] Task {result['id']} {'re-created' if was_updated else 'created'} for order {order.id}")
+                            
+                            # Build updated content
+                            service_name = SERVICE_NAMES.get(order.service_type, order.service_type)
+                            if order.quantity > 1:
+                                content = f"{order.quantity} {service_name} {client_name}"
+                            else:
+                                content = f"{service_name} {client_name}"
+                            
+                            due_date = order.deadline_date.strftime("%Y-%m-%d") if order.deadline_date else None
+                            
+                            # Determine section
+                            section_id = None
+                            if todoist_today or todoist_not_today:
+                                today_date = date.today()
+                                if order.deadline_date and order.deadline_date.date() == today_date:
+                                    section_id = todoist_today or todoist_not_today
+                                else:
+                                    section_id = todoist_not_today or todoist_today
+                            
+                            result = await tc.update_task(
+                                task_id=order.todoist_task_id,
+                                content=content,
+                                due_date=due_date,
+                                section_id=section_id,
+                            )
+                            if result:
+                                log_print(f"[TODOIST] Task {order.todoist_task_id} updated for order {order.id}")
+                            else:
+                                log_print(f"[TODOIST] Failed to update task {order.todoist_task_id}")
+                        else:
+                            log_print(f"[TODOIST] Values unchanged, skipping update for order {order.id}")
                     else:
-                        log_print(f"[TODOIST] Failed to create task: {result}")
-        except Exception as e:
-            log_print(f"[TODOIST] Error syncing task: {type(e).__name__}: {e}")
+                        # === CREATE new Todoist task ===
+                        log_print(f"[TODOIST] Creating task for order {order.id}...")
+                        result = await create_task_from_order(
+                            todoist_token, todoist_project, todoist_today, todoist_not_today,
+                            client_name, order.service_type, order.quantity, order.deadline_date
+                        )
+
+                        if result and result.get("id"):
+                            order.todoist_task_id = result["id"]
+                            db.commit()
+                            log_print(f"[TODOIST] Task {result['id']} created for order {order.id}")
+                        else:
+                            log_print(f"[TODOIST] Failed to create task: {result}")
+            except Exception as e:
+                log_print(f"[TODOIST] Error syncing task: {type(e).__name__}: {e}")
 
         # Broadcast order event
         try:
@@ -899,3 +951,4 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
     else:
         log_print(f"[DETECT_ORDER] Order not created for conversation {conversation_id}")
         return None
+

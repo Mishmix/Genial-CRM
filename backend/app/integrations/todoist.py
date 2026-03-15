@@ -101,6 +101,39 @@ class TodoistClient:
         
         return await self._request("POST", "tasks", data)
     
+    async def update_task(
+        self,
+        task_id: str,
+        content: Optional[str] = None,
+        description: Optional[str] = None,
+        due_date: Optional[str] = None,
+        due_string: Optional[str] = None,
+        priority: Optional[int] = None,
+        labels: Optional[List[str]] = None,
+        section_id: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Update an existing task in Todoist (preserves task ID, comments, subtasks)."""
+        data = {}
+        if content is not None:
+            data["content"] = content
+        if description is not None:
+            data["description"] = description
+        if due_date is not None:
+            data["due_date"] = due_date
+        if due_string is not None:
+            data["due_string"] = due_string
+        if priority is not None:
+            data["priority"] = priority
+        if labels is not None:
+            data["labels"] = labels
+        if section_id is not None:
+            data["section_id"] = section_id
+        
+        if not data:
+            return None
+        
+        return await self._request("POST", f"tasks/{task_id}", data)
+    
     async def get_tasks(self, project_id: Optional[str] = None) -> List[Dict]:
         """Get active tasks"""
         params = {}
