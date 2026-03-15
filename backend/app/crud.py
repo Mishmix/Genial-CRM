@@ -834,6 +834,23 @@ def create_ai_order(
         existing._old_deadline = old_deadline
         return existing
 
+    # GUARD: Проверяем, нет ли уже ЗАВЕРШЁННОГО/ОТМЕНЁННОГО заказа
+    # на ту же услугу в той же переписке — если есть, не создаём дубликат
+    finished_order = db.query(Order).filter(
+        Order.conversation_id == conversation_id,
+        Order.service_type == service_type,
+        Order.source == "ai",
+        Order.status.in_(["completed", "cancelled"]),
+    ).first()
+
+    if finished_order:
+        import logging
+        logging.getLogger(__name__).info(
+            f"[AI_ORDER] Skipping: already have {finished_order.status} order "
+            f"{finished_order.id} for {service_type} in conversation {conversation_id}"
+        )
+        return None
+
     # Создаём новый заказ
     order = Order(
         client_id=client_id,

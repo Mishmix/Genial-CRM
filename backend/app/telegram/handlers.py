@@ -789,6 +789,17 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         log_print(f"[DETECT_ORDER] No incoming client messages — skipping detection")
         return None
 
+    # GUARD: Не анализируем переписку, если в ней уже есть завершённые заказы
+    # (order completed/cancelled = работа сделана, не нужно пересоздавать)
+    from app.models import Order as OrderModel
+    completed_in_conv = db.query(OrderModel).filter(
+        OrderModel.conversation_id == conversation_id,
+        OrderModel.status.in_(["completed", "cancelled"]),
+    ).count()
+    if completed_in_conv > 0:
+        log_print(f"[DETECT_ORDER] Conversation {conversation_id} already has {completed_in_conv} completed/cancelled orders — skipping AI detection")
+        return None
+
     # Форматируем для детектора
     messages_data = [
         {
