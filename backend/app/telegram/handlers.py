@@ -768,13 +768,13 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
     """
     log_print(f"[DETECT_ORDER] Starting for client={client_id}, conversation={conversation_id}")
 
-    # Получаем сообщения за последние 3 дня
+    # Получаем сообщения за последние 7 дней (расширено с 3 для лучшего контекста)
     now = now_georgia()
-    three_days_ago = now - timedelta(days=3)
+    context_window = now - timedelta(days=7)
     
     messages = db.query(Message).filter(
         Message.conversation_id == conversation_id,
-        Message.sent_at >= three_days_ago
+        Message.sent_at >= context_window
     ).order_by(Message.sent_at.asc()).all()
 
     log_print(f"[DETECT_ORDER] Found {len(messages)} messages in conversation")
@@ -789,16 +789,14 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         log_print(f"[DETECT_ORDER] No incoming client messages — skipping detection")
         return None
 
-    # GUARD: Не анализируем переписку, если в ней уже есть завершённые заказы
-    # (order completed/cancelled = работа сделана, не нужно пересоздавать)
+    # INFO: Логируем наличие прошлых заказов, но НЕ блокируем — клиент может заказать снова
     from app.models import Order as OrderModel
     completed_in_conv = db.query(OrderModel).filter(
         OrderModel.conversation_id == conversation_id,
         OrderModel.status.in_(["completed", "cancelled"]),
     ).count()
     if completed_in_conv > 0:
-        log_print(f"[DETECT_ORDER] Conversation {conversation_id} already has {completed_in_conv} completed/cancelled orders — skipping AI detection")
-        return None
+        log_print(f"[DETECT_ORDER] Conversation {conversation_id} has {completed_in_conv} past completed/cancelled orders — still analyzing for new orders")
 
     # Форматируем для детектора
     messages_data = [
@@ -855,14 +853,14 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         log_print(f"[TODOIST_GUARD] is_returning_client={is_returning_client} (completed_orders={completed_orders_count}), "
                    f"owner_replies={owner_replies_count}, is_confirmed={is_confirmed}")
         
-        # Для новых клиентов: задача в Todoist только если подтверждено И 2+ ответа владельца
+        # Для новых клиентов: задача в Todoist только если подтверждено И 1+ ответ владельца
         should_sync_todoist = True
         if not is_returning_client:
             if not is_confirmed:
                 log_print(f"[TODOIST_GUARD] New client, order NOT confirmed by AI — skipping Todoist")
                 should_sync_todoist = False
-            elif owner_replies_count < 2:
-                log_print(f"[TODOIST_GUARD] New client, owner replied only {owner_replies_count} time(s) — skipping Todoist")
+            elif owner_replies_count < 1:
+                log_print(f"[TODOIST_GUARD] New client, owner hasn't replied yet — skipping Todoist")
                 should_sync_todoist = False
             else:
                 log_print(f"[TODOIST_GUARD] New client but order confirmed + {owner_replies_count} owner replies — creating Todoist task")

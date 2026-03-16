@@ -171,8 +171,18 @@ async def _gemini_completion(
                 if 'candidates' in data and data['candidates']:
                     candidate = data['candidates'][0]
                     if 'content' in candidate and 'parts' in candidate['content']:
-                        result = candidate['content']['parts'][0]['text']
-                        logger.info(f"Gemini response success (length: {len(result) if result else 0})")
+                        parts = candidate['content']['parts']
+                        # When thinking is enabled, parts[0] may be thinking text
+                        # We need the LAST non-thinking text part
+                        result = None
+                        for part in reversed(parts):
+                            if 'text' in part and not part.get('thought', False):
+                                result = part['text']
+                                break
+                        # Fallback: if all parts are thoughts or no text found, try last part
+                        if not result and parts:
+                            result = parts[-1].get('text', '')
+                        logger.info(f"Gemini response success (parts={len(parts)}, result_length={len(result) if result else 0})")
                         return result
                 
                 logger.error(f"Unexpected Gemini response structure. Data: {json.dumps(data)[:1000]}")
