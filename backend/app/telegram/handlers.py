@@ -760,10 +760,10 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
     Вызывается автоматически при получении сообщений.
     
     Логика:
-    - AI детектирует заказ и возвращает is_confirmed (подтверждённый vs запрос)
-    - Для НОВЫХ клиентов (без завершённых заказов) Todoist-задача создаётся ТОЛЬКО
-      если заказ подтверждён (is_confirmed=true) И владелец ответил ≥2 раз в переписке
+    - AI детектирует заказ (has_order=true, confidence >= threshold)
+    - Для НОВЫХ клиентов: Todoist-задача создаётся если владелец ответил ≥1 раз
     - Для ПОСТОЯННЫХ клиентов (есть завершённые заказы) задача создаётся сразу
+    - is_confirmed сохраняется в заказе как информационное поле, но НЕ блокирует Todoist
     - Если Todoist-задача уже существует, она ОБНОВЛЯЕТСЯ (не удаляется/пересоздаётся)
     """
     log_print(f"[DETECT_ORDER] Starting for client={client_id}, conversation={conversation_id}")
@@ -853,17 +853,16 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
         log_print(f"[TODOIST_GUARD] is_returning_client={is_returning_client} (completed_orders={completed_orders_count}), "
                    f"owner_replies={owner_replies_count}, is_confirmed={is_confirmed}")
         
-        # Для новых клиентов: задача в Todoist только если подтверждено И 1+ ответ владельца
+        # Для новых клиентов: задача в Todoist если has_order=true (уже проверено) + владелец ответил 1+ раз
+        # is_confirmed НЕ блокирует — достаточно has_order + confidence >= threshold + owner reply
         should_sync_todoist = True
         if not is_returning_client:
-            if not is_confirmed:
-                log_print(f"[TODOIST_GUARD] New client, order NOT confirmed by AI — skipping Todoist")
-                should_sync_todoist = False
-            elif owner_replies_count < 1:
+            if owner_replies_count < 1:
                 log_print(f"[TODOIST_GUARD] New client, owner hasn't replied yet — skipping Todoist")
                 should_sync_todoist = False
             else:
-                log_print(f"[TODOIST_GUARD] New client but order confirmed + {owner_replies_count} owner replies — creating Todoist task")
+                log_print(f"[TODOIST_GUARD] New client, owner replied {owner_replies_count}x, "
+                           f"is_confirmed={is_confirmed} — creating Todoist task")
         else:
             log_print(f"[TODOIST_GUARD] Returning client — syncing Todoist task")
 
