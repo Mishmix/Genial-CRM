@@ -244,21 +244,11 @@ async def _groq_completion(
                 
                 logger.info(f"Groq content: '{result}', reasoning length: {len(reasoning) if reasoning else 0}")
                 
-                # If content is empty but reasoning exists, extract from reasoning
+                # If content is empty but reasoning exists, return reasoning
+                # for the caller to parse (works for both classification and order detection)
                 if not result and reasoning:
-                    # Look for JSON in reasoning
-                    json_match = re.search(r'\{[^}]*"category"[^}]*\}', reasoning)
-                    if json_match:
-                        result = json_match.group(0)
-                        logger.info(f"Extracted JSON from reasoning: {result}")
-                    else:
-                        # Fallback: check for keywords
-                        reasoning_lower = reasoning.lower()
-                        if 'thumbnail' in reasoning_lower and 'other' not in reasoning_lower:
-                            result = '{"category":"thumbnail"}'
-                        else:
-                            result = '{"category":"other"}'
-                        logger.info(f"Inferred from reasoning keywords: {result}")
+                    result = reasoning
+                    logger.info(f"Content empty, using reasoning as result (length={len(reasoning)})")
                 
                 return result
                 

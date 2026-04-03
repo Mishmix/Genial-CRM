@@ -154,7 +154,7 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
         result = await chat_completion(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_completion_tokens=500,
+            max_completion_tokens=1024,
         )
 
         if not result:
