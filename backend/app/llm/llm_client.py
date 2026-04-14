@@ -95,7 +95,14 @@ async def chat_completion(
         if not settings.groq_api_key:
             logger.warning("Groq API key not configured")
             return None
-        return await _groq_completion(messages, model, temperature, max_completion_tokens)
+        # First attempt
+        result = await _groq_completion(messages, model, temperature, max_completion_tokens)
+        if result and result.strip():
+            return result
+        # Retry once on empty/None response
+        logger.warning("Groq returned empty/None, retrying once...")
+        result = await _groq_completion(messages, model, temperature, max_completion_tokens)
+        return result
 
 
 async def _gemini_completion(
@@ -238,17 +245,27 @@ async def _groq_completion(
                 data = response.json()
                 message = data["choices"][0]["message"]
                 
-                # Get content or reasoning
-                result = message.get("content", "")
-                reasoning = message.get("reasoning", "")
-                
-                logger.info(f"Groq content: '{result}', reasoning length: {len(reasoning) if reasoning else 0}")
-                
-                # If content is empty but reasoning exists, return reasoning
-                # for the caller to parse (works for both classification and order detection)
-                if not result and reasoning:
+                # Get content and reasoning fields
+                content = message.get("content") or ""
+                reasoning = message.get("reasoning") or ""
+
+                logger.info(f"Groq content length: {len(content)}, reasoning length: {len(reasoning)}")
+
+                # gpt-oss-120b is a reasoning model: the answer may land in
+                # either field, and content can contain gibberish/reasoning tokens.
+                # Prefer whichever field looks like it has structured (JSON) data.
+                if content.strip() and "{" in content:
+                    result = content
+                elif reasoning.strip() and "{" in reasoning:
                     result = reasoning
-                    logger.info(f"Content empty, using reasoning as result (length={len(reasoning)})")
+                    logger.info("Content has no JSON, using reasoning field")
+                elif content.strip():
+                    result = content
+                elif reasoning.strip():
+                    result = reasoning
+                    logger.info("Content empty, using reasoning field")
+                else:
+                    result = ""
                 
                 return result
                 

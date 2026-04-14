@@ -20,11 +20,9 @@ def debug_log(msg: str):
     logger.info(msg)
 
 
-ORDER_DETECTION_PROMPT = """Ты анализатор переписки дизайнера YouTube-обложек.
+ORDER_DETECTION_SYSTEM = """Ты анализатор переписки дизайнера YouTube-обложек. Ты ВСЕГДА отвечаешь ТОЛЬКО валидным JSON без markdown-блоков, без пояснений, без текста до или после JSON.
 
-Найди ПОДТВЕРЖДЁННЫЙ ЗАКАЗ на дизайн-услуги.
-
-ВАЖНО — РАЗЛИЧАЙ ЗАПРОС и ЗАКАЗ:
+РАЗЛИЧАЙ ЗАПРОС и ЗАКАЗ:
 - ЗАПРОС (is_confirmed: false): клиент только интересуется ("привет, сколько стоит превью?", "интересует обложка", "а вы делаете баннеры?"). Заказ ещё НЕ согласован.
 - ЗАКАЗ (is_confirmed: true): есть чёткие сигналы подтверждения:
   * Согласована цена, количество или дедлайн ("ок, давай 3 штуки", "по 20$ за штуку, делай")
@@ -38,9 +36,9 @@ ORDER_DETECTION_PROMPT = """Ты анализатор переписки диз�
 - Только спрашивает цену без подтверждения
 
 ХРОНОЛОГИЯ И ДАТЫ:
-- Шаг 1: Прочитай переписку СВЕРХУ ВНИЗ. Обрати внимание на ДАТЫ сообщений — они указаны в скобках [дата].
-- Шаг 2: В поле "thought_process" опиши, как менялся заказ и на какую дату клиент сказал "завтра"/"сейчас" (если было). Если клиент сказал "завтра" 13 марта, то дедлайн = 14 марта, а НЕ сегодня+1!
-- Шаг 3: Выведи итоговый результат. Если количество или срок изменились в конце, используй именно новые, ОБНОВЛЁННЫЕ значения.
+- Читай переписку СВЕРХУ ВНИЗ. Даты указаны в скобках [дата].
+- Если клиент сказал "завтра" 13 марта, дедлайн = 14 марта, а НЕ сегодня+1!
+- Если количество или срок изменились в конце, используй ОБНОВЛЁННЫЕ значения.
 - Последнее сообщение клиента ПРИОРИТЕТНЕЕ всех предыдущих.
 
 Типы услуг:
@@ -51,13 +49,14 @@ ORDER_DETECTION_PROMPT = """Ты анализатор переписки диз�
 
 Количество: если не указано = 1
 
-Сегодня: {today}
+Формат ответа — строго JSON, ничего кроме JSON:
+{{"thought_process":"пошаговый анализ","has_order":true,"is_confirmed":true,"confidence":0.9,"reason":"причина","order":{{"service_type":"thumbnail","quantity":3,"amount":null,"deadline_date":"2026-02-27","deadline_text":"сейчас","notes":"описание"}}}}"""
+
+
+ORDER_DETECTION_USER = """Сегодня: {today}
 
 {existing_orders_section}Переписка (хронологически, последнее внизу):
-{messages}
-
-Ответь строго в формате JSON:
-{{"thought_process":"твой пошаговый анализ...","has_order":true,"is_confirmed":true,"confidence":0.9,"reason":"причина","order":{{"service_type":"thumbnail","quantity":3,"amount":null,"deadline_date":"2026-02-27","deadline_text":"сейчас","notes":"описание"}}}}"""
+{messages}"""
 
 
 
@@ -143,7 +142,7 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
         debug_log(f"Existing orders context: {existing_orders_section.strip()}")
 
     try:
-        prompt = ORDER_DETECTION_PROMPT.format(
+        user_prompt = ORDER_DETECTION_USER.format(
             today=today,
             messages=messages_text,
             existing_orders_section=existing_orders_section,
@@ -152,20 +151,23 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
         debug_log("Calling GPT for order detection...")
 
         result = await chat_completion(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": ORDER_DETECTION_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
             temperature=0.0,
             max_completion_tokens=1024,
         )
 
-        if not result:
-            debug_log("GPT returned empty result")
+        if result is None:
+            debug_log("LLM call failed (returned None) — check Groq API key and logs above")
+            return None
+
+        if not result.strip():
+            debug_log("LLM returned empty/whitespace response")
             return None
 
         debug_log(f"GPT raw response: {result[:500]}...")
-
-        if not result:
-            debug_log("GPT returned empty result")
-            return None
 
         # Парсим JSON из ответа - пробуем разные варианты
         data = None
@@ -206,7 +208,7 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
                     pass
 
         if not data:
-            debug_log(f"Could not parse JSON from response")
+            debug_log(f"Could not parse JSON from response. Raw text: {result[:300]}")
             return None
 
         debug_log(f"Parsed JSON: {data}")
