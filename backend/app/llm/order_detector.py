@@ -156,7 +156,7 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.0,
-            max_completion_tokens=1024,
+            max_completion_tokens=4096,
         )
 
         if result is None:
@@ -207,8 +207,26 @@ async def detect_order(messages: List[Dict[str, Any]], existing_orders: Optional
                 except json.JSONDecodeError:
                     pass
 
+        # Вариант 4: сальваж обрезанного JSON (если ответ был truncated)
+        # Добавляем закрывающие } до тех пор, пока JSON не станет валидным
         if not data:
-            debug_log(f"Could not parse JSON from response. Raw text: {result[:300]}")
+            candidate = result.strip()
+            if candidate.startswith("{"):
+                open_braces = candidate.count("{") - candidate.count("}")
+                if open_braces > 0:
+                    # Обрезаем по последней запятой/закрывающей кавычке, чтобы избежать
+                    # битого незакрытого ключа, и добавляем } до баланса.
+                    last_comma = candidate.rfind(",")
+                    if last_comma > 0:
+                        salvaged = candidate[:last_comma] + "}" * open_braces
+                        try:
+                            data = json.loads(salvaged)
+                            debug_log("Salvaged truncated JSON by closing braces")
+                        except json.JSONDecodeError:
+                            pass
+
+        if not data:
+            debug_log(f"Could not parse JSON from response. Raw text: {result[:500]}")
             return None
 
         debug_log(f"Parsed JSON: {data}")

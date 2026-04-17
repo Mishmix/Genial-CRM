@@ -225,7 +225,17 @@ async def _groq_completion(
         "max_completion_tokens": max_completion_tokens,
         "top_p": 1.0,
     }
-    
+
+    # gpt-oss models are reasoning models — without reasoning_effort=low the
+    # reasoning tokens alone consume 500-1500 tokens, truncating the actual answer.
+    if "gpt-oss" in target_model:
+        payload["reasoning_effort"] = "low"
+
+    # Force JSON mode when any message hints at JSON output (cheap heuristic).
+    # Groq's json_object mode guarantees syntactically valid JSON.
+    if any("JSON" in m.get("content", "") or "json" in m.get("content", "") for m in messages):
+        payload["response_format"] = {"type": "json_object"}
+
     logger.info(f"Sending request to Groq API with model={target_model}")
     
     for attempt in range(MAX_RETRIES):
@@ -243,13 +253,23 @@ async def _groq_completion(
                     return None
                 
                 data = response.json()
-                message = data["choices"][0]["message"]
-                
+                choice = data["choices"][0]
+                message = choice["message"]
+                finish_reason = choice.get("finish_reason", "unknown")
+
                 # Get content and reasoning fields
                 content = message.get("content") or ""
                 reasoning = message.get("reasoning") or ""
 
-                logger.info(f"Groq content length: {len(content)}, reasoning length: {len(reasoning)}")
+                logger.info(
+                    f"Groq finish_reason={finish_reason}, content length: {len(content)}, "
+                    f"reasoning length: {len(reasoning)}"
+                )
+                if finish_reason == "length":
+                    logger.warning(
+                        "Groq response was TRUNCATED (finish_reason=length). "
+                        f"Increase max_completion_tokens beyond {max_completion_tokens}."
+                    )
 
                 # gpt-oss-120b is a reasoning model: the answer may land in
                 # either field, and content can contain gibberish/reasoning tokens.
