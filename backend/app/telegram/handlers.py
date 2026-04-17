@@ -878,68 +878,72 @@ async def detect_and_create_order(db, client_id: int, conversation_id: int):
                 todoist_not_today = get_setting(db, "todoist_section_not_today_id") or ""
                 todoist_enabled_flag = get_setting(db, "todoist_enabled")
 
+                log_print(f"[TODOIST] Config: token={'yes' if todoist_token else 'NO'}, "
+                           f"project={'yes' if todoist_project else 'NO'}, "
+                           f"enabled_flag={todoist_enabled_flag!r}")
+
                 if todoist_token and todoist_project and todoist_enabled_flag != "false":
                     client_name = f"{client_obj.first_name} {client_obj.last_name or ''}".strip() if client_obj else "Клиент"
+                    log_print(f"[TODOIST] was_updated={was_updated}, "
+                               f"existing todoist_task_id={order.todoist_task_id}")
 
-                    if was_updated and order.todoist_task_id:
-                        # === UPDATE existing Todoist task (not delete+create) ===
-                        old_quantity = getattr(order, '_old_quantity', None)
-                        old_deadline = getattr(order, '_old_deadline', None)
-                        values_changed = (
-                            old_quantity != order.quantity or
-                            old_deadline != order.deadline_date
-                        )
-                        if values_changed:
-                            log_print(f"[TODOIST] Values changed (qty: {old_quantity}->{order.quantity}, "
-                                       f"deadline: {old_deadline}->{order.deadline_date}), updating task")
-                            tc = TodoistClient(todoist_token)
-                            
-                            # Build updated content
-                            service_name = SERVICE_NAMES.get(order.service_type, order.service_type)
-                            if order.quantity > 1:
-                                content = f"{order.quantity} {service_name} {client_name}"
-                            else:
-                                content = f"{service_name} {client_name}"
-                            
-                            due_date = order.deadline_date.strftime("%Y-%m-%d") if order.deadline_date else None
-                            
-                            # Determine section
-                            section_id = None
-                            if todoist_today or todoist_not_today:
-                                today_date = date.today()
-                                if order.deadline_date and order.deadline_date.date() == today_date:
-                                    section_id = todoist_today or todoist_not_today
-                                else:
-                                    section_id = todoist_not_today or todoist_today
-                            
-                            result = await tc.update_task(
-                                task_id=order.todoist_task_id,
-                                content=content,
-                                due_date=due_date,
-                                section_id=section_id,
-                            )
-                            if result:
-                                log_print(f"[TODOIST] Task {order.todoist_task_id} updated for order {order.id}")
-                            else:
-                                log_print(f"[TODOIST] Failed to update task {order.todoist_task_id}")
-                        else:
-                            log_print(f"[TODOIST] Values unchanged, skipping update for order {order.id}")
+                    tc = TodoistClient(todoist_token)
+                    service_name = SERVICE_NAMES.get(order.service_type, order.service_type)
+                    if order.quantity > 1:
+                        task_content = f"{order.quantity} {service_name} {client_name}"
                     else:
-                        # === CREATE new Todoist task ===
-                        log_print(f"[TODOIST] Creating task for order {order.id}...")
+                        task_content = f"{service_name} {client_name}"
+                    due_date_str = order.deadline_date.strftime("%Y-%m-%d") if order.deadline_date else None
+                    section_id = None
+                    if todoist_today or todoist_not_today:
+                        today_date = date.today()
+                        if order.deadline_date and order.deadline_date.date() == today_date:
+                            section_id = todoist_today or todoist_not_today
+                        else:
+                            section_id = todoist_not_today or todoist_today
+
+                    task_synced = False
+
+                    # Идемпотентная синхронизация: если у заказа уже есть todoist_task_id —
+                    # пробуем обновить. Если Todoist вернул ошибку (задача удалена, токен
+                    # сменился, values совпадают) — fallback на создание новой задачи.
+                    if order.todoist_task_id:
+                        log_print(f"[TODOIST] Updating existing task {order.todoist_task_id} for order {order.id}")
+                        result = await tc.update_task(
+                            task_id=order.todoist_task_id,
+                            content=task_content,
+                            due_date=due_date_str,
+                            section_id=section_id,
+                        )
+                        if result:
+                            log_print(f"[TODOIST] Task {order.todoist_task_id} updated for order {order.id}")
+                            task_synced = True
+                        else:
+                            log_print(f"[TODOIST] Update failed for task {order.todoist_task_id} — "
+                                       f"creating a new one instead")
+                            order.todoist_task_id = None
+                            db.commit()
+
+                    # Создаём задачу, если её ещё нет (или если UPDATE упал).
+                    if not task_synced:
+                        log_print(f"[TODOIST] Creating task for order {order.id} "
+                                   f"(content='{task_content}', due={due_date_str}, section={section_id})")
                         result = await create_task_from_order(
                             todoist_token, todoist_project, todoist_today, todoist_not_today,
                             client_name, order.service_type, order.quantity, order.deadline_date
                         )
-
                         if result and result.get("id"):
                             order.todoist_task_id = result["id"]
                             db.commit()
                             log_print(f"[TODOIST] Task {result['id']} created for order {order.id}")
                         else:
-                            log_print(f"[TODOIST] Failed to create task: {result}")
+                            log_print(f"[TODOIST] Failed to create task. Response: {result}")
+                else:
+                    log_print(f"[TODOIST] Skipped: token/project/enabled misconfigured")
             except Exception as e:
+                import traceback
                 log_print(f"[TODOIST] Error syncing task: {type(e).__name__}: {e}")
+                log_print(traceback.format_exc())
 
         # Broadcast order event
         try:
