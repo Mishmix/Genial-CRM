@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getSettings, updateSetting, getTodoistConfig, updateTodoistConfig, testTodoistConnection, getTodoistProjects, getTodoistSections, TodoistProject, importTelegramExport, getBackups, getBackupStats, createBackup, deleteBackup, restoreBackup, cleanupBackups, getBackupDownloadUrl, Backup, BackupStats } from '../api';
+import { getSettings, updateSetting, getTodoistConfig, updateTodoistConfig, testTodoistConnection, getTodoistProjects, getTodoistSections, TodoistProject, importTelegramExport, getBackups, getBackupStats, createBackup, deleteBackup, restoreBackup, cleanupBackups, getBackupDownloadUrl, Backup, BackupStats, getRoutineToken, regenerateRoutineToken } from '../api';
 import PageWrapper from '../components/PageWrapper';
 import { useToast } from '../contexts/ToastContext';
 
@@ -15,6 +15,8 @@ export default function SettingsPage() {
     gemini_api_key_set: false,
     mini_app_url: '',
     admin_telegram_ids: '',
+    routine_api_token: '',
+    routine_api_token_set: false,
     // App settings
     portfolio_url: '',
     auto_reply_enabled: true,
@@ -40,6 +42,10 @@ export default function SettingsPage() {
   const [importResult, setImportResult] = useState<{ clients: number; messages: number; skipped: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
+
+  // Routine API token (AI-Manager) — full token shown only on user demand
+  const [revealedRoutineToken, setRevealedRoutineToken] = useState<string | null>(null);
+  const [routineTokenBusy, setRoutineTokenBusy] = useState(false);
 
   // Backup state
   const [backups, setBackups] = useState<Backup[]>([]);
@@ -157,6 +163,36 @@ export default function SettingsPage() {
 
   const toggleShow = (key: string) => {
     setShowTokens(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  // Routine API token (AI-Manager) handlers
+  const handleRevealRoutineToken = async () => {
+    setRoutineTokenBusy(true);
+    try {
+      const { token } = await getRoutineToken();
+      setRevealedRoutineToken(token);
+    } catch (err) { toast.error('Не удалось получить токен'); }
+    finally { setRoutineTokenBusy(false); }
+  };
+
+  const handleRegenerateRoutineToken = async () => {
+    if (!confirm('Сгенерировать новый routine-токен? Старый перестанет работать — нужно будет обновить переменную CRM_ROUTINE_TOKEN в Anthropic Cloud Environment.')) return;
+    setRoutineTokenBusy(true);
+    try {
+      const { token } = await regenerateRoutineToken();
+      setRevealedRoutineToken(token);
+      setSettings(s => ({ ...s, routine_api_token_set: true }));
+      toast.success('Новый токен сгенерирован — скопируйте его и обновите в Anthropic');
+    } catch (err) { toast.error('Не удалось сгенерировать токен'); }
+    finally { setRoutineTokenBusy(false); }
+  };
+
+  const copyRoutineToken = async () => {
+    if (!revealedRoutineToken) return;
+    try {
+      await navigator.clipboard.writeText(revealedRoutineToken);
+      toast.success('Скопировано');
+    } catch { toast.error('Не удалось скопировать'); }
   };
 
   // Backup functions
@@ -518,6 +554,58 @@ export default function SettingsPage() {
               </div>
 
               <p className="text-xs text-[var(--text-muted)] mt-3">Когда вы отвечаете клиенту, бот перестаёт анализировать этот чат</p>
+            </div>
+          </div>
+
+          {/* === ROUTINE API TOKEN (AI-Manager) === */}
+          <div className="card p-6 stagger-item relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-500/20 to-fuchsia-500/10 rounded-[20px]" />
+            <div className="relative z-10">
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-3xl shadow-lg" style={{ boxShadow: '0 8px 30px -5px rgba(168, 85, 247, 0.5)' }}>🔑</div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg text-[var(--text-primary)]">Routine API токен</h3>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    Используется Anthropic Claude Routines (morning/evening digest) для доступа к этому CRM.
+                    Положи как <code className="px-1.5 py-0.5 rounded bg-[var(--bg-hover)] text-violet-400">CRM_ROUTINE_TOKEN</code> в Cloud Environment.
+                  </p>
+                </div>
+                {settings.routine_api_token_set && !revealedRoutineToken && (
+                  <span className="badge badge-qualified">✓ Настроен</span>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  readOnly
+                  value={revealedRoutineToken ?? (settings.routine_api_token_set ? settings.routine_api_token : '— не сгенерирован —')}
+                  className="input flex-1 font-mono"
+                />
+                {!revealedRoutineToken && settings.routine_api_token_set && (
+                  <button
+                    onClick={handleRevealRoutineToken}
+                    disabled={routineTokenBusy}
+                    className="btn btn-ghost min-w-[110px]"
+                  >
+                    {routineTokenBusy ? '…' : '👁 Показать'}
+                  </button>
+                )}
+                {revealedRoutineToken && (
+                  <button onClick={copyRoutineToken} className="btn btn-ghost min-w-[110px]">📋 Копировать</button>
+                )}
+                <button
+                  onClick={handleRegenerateRoutineToken}
+                  disabled={routineTokenBusy}
+                  className="btn btn-primary min-w-[140px]"
+                >
+                  {routineTokenBusy ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (settings.routine_api_token_set ? '↻ Перевыпустить' : '+ Сгенерировать')}
+                </button>
+              </div>
+
+              <p className="text-xs text-[var(--text-muted)] mt-3">
+                После Regenerate старый токен немедленно перестаёт работать. Не забудь обновить переменную в Anthropic Cloud Environment.
+              </p>
             </div>
           </div>
 

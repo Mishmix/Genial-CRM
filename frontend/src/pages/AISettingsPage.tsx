@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSettings, updateSetting } from '../api';
+import { getSettings, updateSetting, listPrompts, updatePrompt, undoPrompt, AIPrompt } from '../api';
 import PageWrapper from '../components/PageWrapper';
 
 const DEFAULT_PROMPTS = {
@@ -65,8 +65,42 @@ export default function AISettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [prompts, setPrompts] = useState<Record<string, AIPrompt>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  useEffect(() => { loadSettings(); }, []);
+  useEffect(() => { loadSettings(); loadPrompts(); }, []);
+
+  const loadPrompts = async () => {
+    try {
+      const list = await listPrompts();
+      const byKey: Record<string, AIPrompt> = {};
+      const dr: Record<string, string> = {};
+      list.forEach(p => { byKey[p.key] = p; dr[p.key] = p.content; });
+      setPrompts(byKey);
+      setDrafts(dr);
+    } catch (err) { console.error('Failed to load AI prompts:', err); }
+  };
+
+  const handleSavePrompt = async (key: string) => {
+    setSaving(key); setSaved(null);
+    try {
+      const updated = await updatePrompt(key, drafts[key] ?? '');
+      setPrompts(p => ({ ...p, [key]: updated }));
+      setSaved(key); setTimeout(() => setSaved(null), 2000);
+    } catch (err) { console.error('Failed to save prompt:', err); }
+    finally { setSaving(null); }
+  };
+
+  const handleUndoPrompt = async (key: string) => {
+    if (!confirm('Откатить промпт к предыдущей версии? Текущий текст уйдёт в "previous" — повторный undo вернёт его обратно.')) return;
+    setSaving(key);
+    try {
+      const restored = await undoPrompt(key);
+      setPrompts(p => ({ ...p, [key]: restored }));
+      setDrafts(d => ({ ...d, [key]: restored.content }));
+    } catch (err: any) { alert(err?.message || 'Нет предыдущей версии'); }
+    finally { setSaving(null); }
+  };
 
   const loadSettings = async () => {
     setLoading(true);
@@ -230,6 +264,36 @@ export default function AISettingsPage() {
             </div>
           </div>
 
+          {/* AI-Manager: Morning digest prompt */}
+          <PromptEditorSection
+            promptKey="prompt_morning_digest"
+            title="🌅 Morning Digest промпт"
+            subtitle="Утренний дайджест 09:00 — приоритизация активных чатов и заготовки ответов"
+            description="Системный промпт для AI-Manager. Routine читает его перед каждой генерацией, поэтому изменения вступают в силу с следующего запуска без редеплоя кода."
+            saving={saving}
+            saved={saved}
+            prompts={prompts}
+            drafts={drafts}
+            setDrafts={setDrafts}
+            onSave={handleSavePrompt}
+            onUndo={handleUndoPrompt}
+          />
+
+          {/* AI-Manager: Evening strategist prompt */}
+          <PromptEditorSection
+            promptKey="prompt_evening_strategist"
+            title="🌙 Evening Strategist промпт"
+            subtitle="Вечерний разбор раз в 2 дня (20:00) — анализ ошибок, follow-up, инсайты"
+            description="Опирается на 48-часовое окно и предыдущие дайджесты. Меняй стиль/структуру разбора прямо здесь."
+            saving={saving}
+            saved={saved}
+            prompts={prompts}
+            drafts={drafts}
+            setDrafts={setDrafts}
+            onSave={handleSavePrompt}
+            onUndo={handleUndoPrompt}
+          />
+
           {/* Tips */}
           <div className="card p-6 card-gradient stagger-item">
             <div className="flex items-start gap-4">
@@ -256,5 +320,76 @@ export default function AISettingsPage() {
         </div>
       </div>
     </PageWrapper>
+  );
+}
+
+
+interface PromptEditorProps {
+  promptKey: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  saving: string | null;
+  saved: string | null;
+  prompts: Record<string, AIPrompt>;
+  drafts: Record<string, string>;
+  setDrafts: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  onSave: (key: string) => void;
+  onUndo: (key: string) => void;
+}
+
+function PromptEditorSection({
+  promptKey, title, subtitle, description, saving, saved,
+  prompts, drafts, setDrafts, onSave, onUndo,
+}: PromptEditorProps) {
+  const prompt = prompts[promptKey];
+  const draft = drafts[promptKey] ?? '';
+  const isDirty = prompt ? draft !== prompt.content : false;
+  const hasPrevious = !!prompt?.previous;
+
+  return (
+    <div className="card p-6 stagger-item">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-2xl shadow-lg">📋</div>
+          <div>
+            <h3 className="font-semibold text-lg text-[var(--text-primary)]">{title}</h3>
+            <p className="text-sm text-[var(--text-secondary)]">{subtitle}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => onUndo(promptKey)}
+          disabled={!hasPrevious || saving === promptKey}
+          title={hasPrevious ? 'Откатить к предыдущей версии (swap)' : 'Нет предыдущей версии'}
+          className="btn btn-ghost btn-sm disabled:opacity-40"
+        >
+          ↺ Undo
+        </button>
+      </div>
+
+      <p className="text-xs text-[var(--text-muted)] mb-3">{description}</p>
+
+      <textarea
+        value={draft}
+        onChange={(e) => setDrafts(d => ({ ...d, [promptKey]: e.target.value }))}
+        className="input mb-3 font-mono text-sm"
+        rows={20}
+        placeholder={prompt ? '' : 'Загрузка…'}
+      />
+
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-[var(--text-muted)]">
+          {isDirty ? <span className="text-amber-400">● Несохранённые изменения</span> : <span>Сохранён ✓</span>}
+          {hasPrevious && <span className="ml-3 text-[var(--text-muted)]">· есть предыдущая версия для отката</span>}
+        </p>
+        <button
+          onClick={() => onSave(promptKey)}
+          disabled={saving === promptKey || !isDirty}
+          className="btn btn-primary"
+        >
+          {saving === promptKey ? 'Сохранение…' : saved === promptKey ? '✓ Сохранено' : 'Сохранить промпт'}
+        </button>
+      </div>
+    </div>
   );
 }

@@ -245,6 +245,43 @@ export async function updateSetting(key: string, value: string) {
   });
 }
 
+// Routine API token (for AI-Manager Anthropic Routines)
+export async function getRoutineToken() {
+  return request<{ token: string }>('/settings/routine-token');
+}
+
+export async function regenerateRoutineToken() {
+  return request<{ token: string }>('/settings/regenerate-routine-token', { method: 'POST' });
+}
+
+// AI-Manager prompts (digest morning/evening). Stored in `settings` table,
+// editable from Mini App without redeploy. Each PUT parks the previous value
+// in `{key}__previous` for one-step undo.
+export interface AIPrompt {
+  key: string;
+  content: string;
+  previous: string | null;
+}
+
+export async function listPrompts() {
+  return request<AIPrompt[]>('/prompts');
+}
+
+export async function getPrompt(key: string) {
+  return request<AIPrompt>(`/prompts/${encodeURIComponent(key)}`);
+}
+
+export async function updatePrompt(key: string, content: string) {
+  return request<AIPrompt>(`/prompts/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function undoPrompt(key: string) {
+  return request<AIPrompt>(`/prompts/${encodeURIComponent(key)}/undo`, { method: 'POST' });
+}
+
 // Reminders
 export interface Reminder {
   id: number;

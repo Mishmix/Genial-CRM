@@ -1,5 +1,6 @@
 """Settings API routes."""
 import os
+import secrets
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -54,7 +55,31 @@ async def get_settings(
         # Prompts from DB
         "prompt_thumbnail_classification": db_settings.get("prompt_thumbnail_classification", ""),
         "prompt_auto_reply": db_settings.get("prompt_auto_reply", ""),
+        # Routine API token for Anthropic Claude Routines (masked)
+        "routine_api_token": mask_key(db_settings.get("routine_api_token", "")),
+        "routine_api_token_set": bool(db_settings.get("routine_api_token")),
     }
+
+
+@router.get("/routine-token")
+async def get_routine_token(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Reveal the full routine API token (admin-only). Used once on copy."""
+    token = get_setting(db, "routine_api_token")
+    return {"token": token or ""}
+
+
+@router.post("/regenerate-routine-token")
+async def regenerate_routine_token(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate a fresh routine API token, replacing any existing one."""
+    token = "gnr_" + secrets.token_urlsafe(32)
+    set_setting(db, "routine_api_token", token)
+    return {"token": token}
 
 
 @router.put("")

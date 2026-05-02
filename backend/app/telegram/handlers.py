@@ -133,6 +133,130 @@ async def handle_business_connection(update: Update, context: ContextTypes.DEFAU
         log_print(f"Removed business connection: {conn.id}")
 
 
+VOICE_PLACEHOLDER = "[голосовое сообщение, расшифровывается…]"
+VOICE_FAILED_PLACEHOLDER = "[не удалось расшифровать]"
+
+
+async def _handle_voice_business_message(message):
+    """Save a voice business message and schedule background transcription.
+
+    Mirrors the minimal upsert/save flow of handle_business_message but skips
+    text-only paths (classification, order detection). On voice transcribe
+    success the Message.text is overwritten with the transcription so existing
+    UI/search keep working transparently.
+    """
+    user = message.from_user
+    business_connection_id = message.business_connection_id
+    settings = get_settings()
+
+    is_owner_message = False
+    if settings.admin_telegram_ids:
+        admin_ids = [int(x.strip()) for x in settings.admin_telegram_ids.split(",") if x.strip()]
+        is_owner_message = user.id in admin_ids
+
+    db = SessionLocal()
+    try:
+        if is_owner_message:
+            chat = message.chat
+            client_data = ClientCreate(
+                telegram_user_id=chat.id,
+                username=getattr(chat, 'username', None),
+                first_name=getattr(chat, 'first_name', None) or "Unknown",
+                last_name=getattr(chat, 'last_name', None),
+                language_code=None,
+                business_connection_id=business_connection_id,
+            )
+        else:
+            client_data = ClientCreate(
+                telegram_user_id=user.id,
+                username=user.username,
+                first_name=user.first_name or "Unknown",
+                last_name=user.last_name,
+                language_code=user.language_code,
+                business_connection_id=business_connection_id,
+            )
+        client = upsert_client(db, client_data)
+        if client.is_archived and not is_owner_message:
+            client.is_archived = False
+            client.archived_at = None
+            db.commit()
+
+        conversation = get_or_create_conversation(db, client, business_connection_id)
+
+        new_msg = Message(
+            client_id=client.id,
+            conversation_id=conversation.id,
+            direction="out" if is_owner_message else "in",
+            text=VOICE_PLACEHOLDER,
+            message_type="voice",
+            telegram_message_id=message.message_id,
+            sent_at=now_georgia(),
+            transcription_status="pending",
+        )
+        db.add(new_msg)
+        if not is_owner_message:
+            conversation.unread_count = (conversation.unread_count or 0) + 1
+            conversation.updated_at = now_georgia()
+        db.commit()
+        db.refresh(new_msg)
+
+        message_id = new_msg.id
+        voice_file_id = message.voice.file_id
+        log_print(f"Voice message stored (id={message_id}), scheduling transcription")
+    finally:
+        db.close()
+
+    # Background: download audio, transcribe via Whisper, update message.
+    asyncio.create_task(_transcribe_and_save(message_id, voice_file_id))
+
+
+async def _transcribe_and_save(message_id: int, voice_file_id: str):
+    """Download voice file from Telegram, transcribe via Groq Whisper, persist."""
+    from app.telegram.bot import get_bot
+    from app.llm.llm_client import transcribe_voice
+
+    transcript: Optional[str] = None
+    final_status = "failed"
+    try:
+        bot = get_bot()
+        if bot is None:
+            raise RuntimeError("Bot not initialized")
+        tg_file = await bot.get_file(voice_file_id)
+        audio_bytes = await tg_file.download_as_bytearray()
+        transcript = await transcribe_voice(bytes(audio_bytes), filename=f"{voice_file_id}.ogg")
+        final_status = "done"
+        log_print(f"Transcription done for message {message_id}: {len(transcript)} chars")
+    except Exception as e:
+        log_print(f"Transcription failed for message {message_id}: {type(e).__name__}: {e}")
+
+    db = SessionLocal()
+    try:
+        msg = db.query(Message).filter(Message.id == message_id).first()
+        if msg is None:
+            return
+        msg.transcription_status = final_status
+        if final_status == "done" and transcript:
+            msg.transcription = transcript
+            msg.text = transcript  # Keep UI/search working without changes.
+        else:
+            msg.text = VOICE_FAILED_PLACEHOLDER
+        db.commit()
+        try:
+            await broadcast_update("message_updated", {
+                "client_id": msg.client_id,
+                "conversation_id": msg.conversation_id,
+                "message": {
+                    "id": msg.id,
+                    "text": msg.text,
+                    "transcription_status": msg.transcription_status,
+                },
+            })
+        except Exception as e:
+            log_print(f"WS broadcast failed after transcription: {e}")
+    finally:
+        db.close()
+
+
 async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming business message with thumbnail classification."""
     log_print("=== BUSINESS MESSAGE RECEIVED ===")
@@ -147,7 +271,12 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         log_print("No from_user in message")
         return
     
-    # Skip non-text messages
+    # Voice messages: separate flow (transcribe in background, then save).
+    if message.voice and not message.text:
+        await _handle_voice_business_message(message)
+        return
+
+    # Skip other non-text messages (photo, video, document — out of scope for now)
     if not message.text:
         log_print(f"Skipping non-text message from user {user.id}")
         return

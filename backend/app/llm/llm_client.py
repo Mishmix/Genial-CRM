@@ -1,4 +1,5 @@
 """LLM API client (Groq and Gemini REST) for thumbnail classification and order detection."""
+import asyncio
 import json
 import re
 import httpx
@@ -338,3 +339,54 @@ async def classify_thumbnail(buffer_messages: List[str]) -> Optional[str]:
     
     logger.warning(f"Could not parse classification result: {result}")
     return "other"
+
+
+GROQ_WHISPER_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+WHISPER_MODEL = "whisper-large-v3"
+
+
+async def transcribe_voice(
+    audio_bytes: bytes,
+    filename: str = "voice.ogg",
+    language_hint: Optional[str] = None,
+) -> str:
+    """Transcribe a voice file via Groq whisper-large-v3.
+
+    Retries 3 times on 429/timeout with exponential backoff (2s, 4s, 8s).
+    Raises RuntimeError on permanent failure — caller should mark message
+    transcription_status='failed' and store '[не удалось расшифровать]'.
+    """
+    settings = get_settings()
+    headers = {"Authorization": f"Bearer {settings.groq_api_key}"}
+    files = {"file": (filename, audio_bytes, "audio/ogg")}
+    data = {"model": WHISPER_MODEL, "response_format": "json"}
+    if language_hint:
+        data["language"] = language_hint
+
+    last_error: Optional[str] = None
+    for attempt in range(3):
+        try:
+            async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+                resp = await client.post(GROQ_WHISPER_URL, headers=headers, files=files, data=data)
+                if resp.status_code == 200:
+                    text = (resp.json().get("text") or "").strip()
+                    logger.info(f"Whisper transcribed {len(audio_bytes)} bytes -> {len(text)} chars")
+                    return text
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                    logger.warning(f"Whisper retryable error (attempt {attempt + 1}/3): {last_error}")
+                else:
+                    raise RuntimeError(f"Whisper non-retryable HTTP {resp.status_code}: {resp.text[:200]}")
+        except httpx.TimeoutException:
+            last_error = "timeout"
+            logger.warning(f"Whisper timeout (attempt {attempt + 1}/3)")
+        except RuntimeError:
+            raise
+        except Exception as e:
+            last_error = f"{type(e).__name__}: {e}"
+            logger.warning(f"Whisper unexpected error (attempt {attempt + 1}/3): {last_error}")
+
+        if attempt < 2:
+            await asyncio.sleep(2 ** (attempt + 1))
+
+    raise RuntimeError(f"Whisper failed after 3 attempts: {last_error}")
