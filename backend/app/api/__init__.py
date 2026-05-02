@@ -14,6 +14,7 @@ from app.api.routes_export import router as export_router
 from app.api.routes_todoist import router as todoist_router
 from app.api.routes_import import router as import_router
 from app.api.routes_backup import router as backup_router
+from app.api.routes_digest import router as digest_router
 
 api_router = APIRouter()
 
@@ -30,3 +31,4 @@ api_router.include_router(export_router)
 api_router.include_router(todoist_router, prefix="/todoist", tags=["todoist"])
 api_router.include_router(import_router, prefix="/import", tags=["import"])
 api_router.include_router(backup_router)
+api_router.include_router(digest_router, tags=["digest"])

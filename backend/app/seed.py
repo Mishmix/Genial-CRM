@@ -25,7 +25,11 @@ def seed_database(db: Session):
     
     # Seed default settings
     seed_settings(db)
-    
+
+    # Seed AI-Manager digest prompts
+    from app.seed_prompts import seed_prompts
+    seed_prompts(db)
+
     logger.info("Database seeded successfully")
 
 

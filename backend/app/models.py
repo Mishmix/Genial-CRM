@@ -1,6 +1,6 @@
 """SQLAlchemy models for CRM."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table, Index, Float, BigInteger
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Table, Index, Float, BigInteger, JSON, func
 from sqlalchemy.orm import relationship
 from app.db import Base
 
@@ -94,6 +94,8 @@ class Message(Base):
     message_type = Column(String(20), default="text")
     telegram_message_id = Column(Integer, nullable=True)
     sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    transcription = Column(Text, nullable=True)
+    transcription_status = Column(String(20), nullable=True)  # pending|done|failed
     client = relationship("Client", back_populates="messages")
     __table_args__ = (Index("ix_messages_client_sent", "client_id", "sent_at"),)
 
@@ -191,6 +193,21 @@ class Reminder(Base):
     client = relationship("Client", back_populates="reminders")
     conversation = relationship("Conversation", back_populates="reminders")
     __table_args__ = (Index("ix_reminders_remind_at", "remind_at"), Index("ix_reminders_completed", "is_completed"),)
+
+class Digest(Base):
+    __tablename__ = "digests"
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(20), nullable=False, index=True)  # morning|evening
+    content = Column(Text, nullable=False)
+    raw_response = Column(JSON, nullable=True)
+    period_start = Column(DateTime, nullable=False)
+    period_end = Column(DateTime, nullable=False)
+    delivered_at = Column(DateTime, nullable=True)
+    delivery_message_id = Column(Integer, nullable=True)
+    routine_session_url = Column(String(512), nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    __table_args__ = (Index("ix_digests_created_at", "created_at"),)
+
 
 class DailyStats(Base):
     __tablename__ = "daily_stats"
