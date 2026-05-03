@@ -25,6 +25,67 @@ async def admin_cleanup_orphan_orders(apply: bool = Query(False)):
     return {"applied": apply, "counts": counts}
 
 
+@router.post("/admin/classify-rejections", dependencies=[Depends(require_routine_token)])
+async def admin_classify_rejections(apply: bool = Query(False)):
+    """Backfill `Conversation.rejection_normalized_category` for old rejected
+    conversations. Default dry-run; ?apply=true mutates."""
+    from app.scripts.classify_existing_rejections import cleanup_or_classify
+    counts = await cleanup_or_classify(apply=apply)
+    return {"applied": apply, "counts": counts}
+
+
+REACTIVATION_TEMPLATES = [
+    ("reactivation_too_expensive", "ru",
+     "Привет, {first_name}! Делаю даунселл-вариант обложки за 50% обычного прайса — для своих. Если актуально — могу сегодня прислать"),
+    ("reactivation_no_urgency", "ru",
+     "Привет, {first_name}! Видел канал растёт — обычно как раз в этой стадии нужны новые обложки под алгоритм. Готов под тебя слот следующая неделя?"),
+    ("reactivation_chose_competitor", "ru",
+     "Привет, {first_name}! Как зашло сотрудничество? Если хочешь сравнить — могу сделать тестовую обложку бесплатно, посмотришь разницу"),
+    ("reactivation_ghosting", "ru",
+     "Привет, {first_name}! Хотел уточнить — актуально ещё или закрываем?"),
+    ("reactivation_value_unclear", "ru",
+     "Привет, {first_name}! Покажу пару кейсов где обложка дала +30% CTR за неделю — посмотришь?"),
+    ("reactivation_no_budget", "ru",
+     "Привет, {first_name}! Есть мысль — могу сделать одну тестовую обложку бесплатно, если зайдёт — продолжим. Интересно?"),
+    ("reactivation_scope_mismatch", "ru",
+     "Привет, {first_name}! У меня тут расширили услуги — теперь делаем и баннеры/оформление. Если что-то из этого подходит — пиши"),
+    ("reactivation_timing_mismatch", "ru",
+     "Привет, {first_name}! Прошло время — сейчас как раз могу взять. Актуально ещё?"),
+]
+
+
+@router.post("/admin/seed-reactivation-templates", dependencies=[Depends(require_routine_token)])
+async def admin_seed_reactivation_templates(db=Depends(get_db)):
+    """Lazy-seed 8 reactivation Templates. Idempotent: skips existing rows.
+
+    Lives outside startup intentionally — startup must stay thin.
+    """
+    from app.models import Template
+    created = []
+    skipped = []
+    for category, language, content in REACTIVATION_TEMPLATES:
+        existing = (
+            db.query(Template)
+            .filter(Template.category == category, Template.language == language)
+            .first()
+        )
+        if existing:
+            skipped.append(category)
+            continue
+        name = category.replace("reactivation_", "").replace("_", " ").title()
+        db.add(Template(
+            name=f"Реактивация: {name}",
+            language=language,
+            content=content,
+            is_auto_reply=False,
+            category=category,
+            is_active=True,
+        ))
+        created.append(category)
+    db.commit()
+    return {"created": created, "skipped": skipped}
+
+
 @router.get("/admin/detectors-smoke", dependencies=[Depends(require_routine_token)])
 async def admin_detectors_smoke(db=Depends(get_db)):
     """Run all 3 v4 detectors and return raw output. PR#2 smoke endpoint.
