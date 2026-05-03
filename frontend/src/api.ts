@@ -282,6 +282,58 @@ export async function undoPrompt(key: string) {
   return request<AIPrompt>(`/prompts/${encodeURIComponent(key)}/undo`, { method: 'POST' });
 }
 
+// Client AI enrichment
+export interface ClientEnrichment {
+  client_id: number;
+  niche: string | null;
+  channel_name: string | null;
+  channel_size_bucket: string | null;
+  temperature: string | null;
+  communication_style: string | null;
+  price_sensitivity: string | null;
+  decision_speed: string | null;
+  last_summary: string | null;
+  pain_points: string[];
+  value_drivers: string[];
+  next_best_action: string | null;
+  ai_notes: string | null;
+  reviewed_at: string | null;
+  updated_at: string | null;
+}
+
+export async function getClientEnrichment(clientId: number): Promise<ClientEnrichment | null> {
+  return request<ClientEnrichment | null>(`/enrichment/${clientId}`);
+}
+
+export async function refreshClientEnrichment(clientId: number) {
+  return request<{ ok: boolean; queued: boolean }>(`/enrichment/${clientId}/refresh`, { method: 'POST' });
+}
+
+// Google Sheets export
+export interface SheetsStatus {
+  configured: boolean;
+  credentials_set: boolean;
+  spreadsheet_id: string | null;
+  sheet_url: string | null;
+  last_run: null | {
+    ok: boolean;
+    clients_count?: number;
+    orders_count?: number;
+    snapshot_appended?: boolean;
+    duration_sec?: number;
+    ran_at?: string;
+    error?: string;
+  };
+}
+
+export async function getSheetsStatus() {
+  return request<SheetsStatus>('/sheets/export/status');
+}
+
+export async function runSheetsExportManual() {
+  return request<any>('/sheets/export/run-manual', { method: 'POST' });
+}
+
 // Reminders
 export interface Reminder {
   id: number;

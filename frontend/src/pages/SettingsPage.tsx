@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getSettings, updateSetting, getTodoistConfig, updateTodoistConfig, testTodoistConnection, getTodoistProjects, getTodoistSections, TodoistProject, importTelegramExport, getBackups, getBackupStats, createBackup, deleteBackup, restoreBackup, cleanupBackups, getBackupDownloadUrl, Backup, BackupStats, getRoutineToken, regenerateRoutineToken } from '../api';
+import { getSettings, updateSetting, getTodoistConfig, updateTodoistConfig, testTodoistConnection, getTodoistProjects, getTodoistSections, TodoistProject, importTelegramExport, getBackups, getBackupStats, createBackup, deleteBackup, restoreBackup, cleanupBackups, getBackupDownloadUrl, Backup, BackupStats, getRoutineToken, regenerateRoutineToken, getSheetsStatus, runSheetsExportManual, SheetsStatus } from '../api';
 import PageWrapper from '../components/PageWrapper';
 import { useToast } from '../contexts/ToastContext';
 
@@ -46,6 +46,28 @@ export default function SettingsPage() {
   // Routine API token (AI-Manager) — full token shown only on user demand
   const [revealedRoutineToken, setRevealedRoutineToken] = useState<string | null>(null);
   const [routineTokenBusy, setRoutineTokenBusy] = useState(false);
+
+  // Google Sheets export status
+  const [sheetsStatus, setSheetsStatus] = useState<SheetsStatus | null>(null);
+  const [sheetsRunning, setSheetsRunning] = useState(false);
+
+  useEffect(() => {
+    getSheetsStatus().then(setSheetsStatus).catch(() => {});
+  }, []);
+
+  const handleRunSheetsExport = async () => {
+    setSheetsRunning(true);
+    try {
+      await runSheetsExportManual();
+      const updated = await getSheetsStatus();
+      setSheetsStatus(updated);
+      toast.success('Экспорт в Google Sheets завершён');
+    } catch (err: any) {
+      toast.error(err?.message || 'Не удалось обновить Sheets');
+    } finally {
+      setSheetsRunning(false);
+    }
+  };
 
   // Backup state
   const [backups, setBackups] = useState<Backup[]>([]);
@@ -606,6 +628,75 @@ export default function SettingsPage() {
               <p className="text-xs text-[var(--text-muted)] mt-3">
                 После Regenerate старый токен немедленно перестаёт работать. Не забудь обновить переменную в Anthropic Cloud Environment.
               </p>
+            </div>
+          </div>
+
+          {/* === GOOGLE SHEETS EXPORT === */}
+          <div className="card p-6 stagger-item relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-green-500/10 rounded-[20px]" />
+            <div className="relative z-10">
+              <div className="flex items-start gap-4 mb-5">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-500 flex items-center justify-center text-3xl shadow-lg" style={{ boxShadow: '0 8px 30px -5px rgba(16, 185, 129, 0.5)' }}>📊</div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg text-[var(--text-primary)]">Google Sheets экспорт</h3>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    Дневной snapshot CRM в Google Sheets — Clients / Orders / Daily Snapshot.
+                    Автоматически в 06:30 GMT+4 (routine), плюс ручной запуск.
+                  </p>
+                </div>
+                {sheetsStatus?.configured ? (
+                  sheetsStatus.last_run?.ok === false
+                    ? <span className="badge bg-red-500/20 text-red-400 border-red-500/30">⚠️ Ошибка</span>
+                    : <span className="badge badge-qualified">🟢 Active</span>
+                ) : (
+                  <span className="badge bg-amber-500/20 text-amber-400 border-amber-500/30">🔴 Не настроено</span>
+                )}
+              </div>
+
+              {sheetsStatus?.last_run?.ran_at && (
+                <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+                  <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase">Last run</div>
+                    <div className="font-medium">{new Date(sheetsStatus.last_run.ran_at).toLocaleString('ru-RU')}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase">Strings</div>
+                    <div className="font-medium">{sheetsStatus.last_run.clients_count ?? '—'} clients · {sheetsStatus.last_run.orders_count ?? '—'} orders</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
+                    <div className="text-[10px] text-[var(--text-muted)] uppercase">Длительность</div>
+                    <div className="font-medium">{sheetsStatus.last_run.duration_sec ?? '—'} сек</div>
+                  </div>
+                </div>
+              )}
+
+              {sheetsStatus?.last_run?.error && (
+                <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-sm text-red-300 font-mono break-all">
+                  {sheetsStatus.last_run.error}
+                </div>
+              )}
+
+              <div className="flex gap-3 items-center">
+                {sheetsStatus?.sheet_url && (
+                  <a href={sheetsStatus.sheet_url} target="_blank" rel="noopener" className="btn btn-ghost">
+                    📂 Открыть Sheet →
+                  </a>
+                )}
+                <button
+                  onClick={handleRunSheetsExport}
+                  disabled={sheetsRunning || !sheetsStatus?.configured}
+                  className="btn btn-primary"
+                >
+                  {sheetsRunning ? '⏳ Экспорт…' : '▶ Run now'}
+                </button>
+              </div>
+
+              {!sheetsStatus?.configured && (
+                <p className="text-xs text-[var(--text-muted)] mt-3">
+                  Не настроено: добавь в Setting <code>google_sheets_credentials_json</code> (полный JSON service-account)
+                  и <code>google_sheets_spreadsheet_id</code>. Пока это делается через бэкенд напрямую — UI редактор появится в v1.3.
+                </p>
+              )}
             </div>
           </div>
 

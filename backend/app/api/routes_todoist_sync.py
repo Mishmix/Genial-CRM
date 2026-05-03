@@ -77,7 +77,14 @@ async def sync_snapshot(db: Session = Depends(get_db)):
     _need_todoist(cfg)
     now = now_georgia()
     yesterday_start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    activity_since = now - timedelta(hours=48)
+    # Window v2: 24h activity window — was 48h, was producing too much noise.
+    # For clients with an open commitment (pending Order or live Todoist task)
+    # we still pull the last 15 messages regardless of recency, because the
+    # closing signal ("спасибо, получил") often arrives 25+ hours after the
+    # last sync run and we'd miss it otherwise.
+    activity_since = now - timedelta(hours=24)
+    CLOSING_CONTEXT_LIMIT = 15
+    RECENT_WINDOW_LIMIT = 15  # cap per client even within 24h
 
     # --- Todoist side
     tasks = await list_active_tasks(cfg["api_token"], cfg["project_id"])
@@ -91,9 +98,9 @@ async def sync_snapshot(db: Session = Depends(get_db)):
         .all()
     )
     pending_orders: List[Dict[str, Any]] = []
-    client_ids: set[int] = set()
+    open_order_client_ids: set[int] = set()
     for o in pending:
-        client_ids.add(o.client_id)
+        open_order_client_ids.add(o.client_id)
         pending_orders.append({
             "id": o.id,
             "client_id": o.client_id,
@@ -110,11 +117,22 @@ async def sync_snapshot(db: Session = Depends(get_db)):
             "notes": o.notes,
         })
 
-    # --- Active clients (have a pending order or recent activity)
+    # Client ids that own a live Todoist task (mapped or unmapped — both
+    # categories need closing-context). Unmapped tasks have no client link, so
+    # we only pull task→client through pending_orders.todoist_task_id.
+    task_id_to_order = {o["todoist_task_id"]: o for o in pending_orders if o["todoist_task_id"]}
+    task_owner_client_ids = {
+        task_id_to_order[t["id"]]["client_id"]
+        for t in tasks
+        if t["id"] in task_id_to_order
+    }
+    open_commitment_client_ids = open_order_client_ids | task_owner_client_ids
+
+    # --- Active clients = open commitment OR inbound within 24h
     active_q = (
         db.query(Client)
         .filter(
-            (Client.id.in_(client_ids) if client_ids else False)
+            (Client.id.in_(open_commitment_client_ids) if open_commitment_client_ids else False)
             | (Client.last_client_message_at >= activity_since)
         )
         .filter(Client.is_archived == False)  # noqa: E712
@@ -122,13 +140,12 @@ async def sync_snapshot(db: Session = Depends(get_db)):
     )
     active_clients: List[Dict[str, Any]] = []
     for c in active_q:
-        msgs = (
-            db.query(Message)
-            .filter(Message.client_id == c.id)
-            .order_by(desc(Message.sent_at))
-            .limit(25)
-            .all()
-        )
+        # Closing-context for clients with a live commitment: last 15 msgs
+        # regardless of date. Otherwise: last 15 msgs from the 24h window.
+        q = db.query(Message).filter(Message.client_id == c.id)
+        if c.id not in open_commitment_client_ids:
+            q = q.filter(Message.sent_at >= activity_since)
+        msgs = q.order_by(desc(Message.sent_at)).limit(CLOSING_CONTEXT_LIMIT).all()
         msgs.reverse()
         active_clients.append({
             "id": c.id,

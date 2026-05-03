@@ -209,6 +209,27 @@ class Digest(Base):
     __table_args__ = (Index("ix_digests_created_at", "created_at"),)
 
 
+class ClientEnrichment(Base):
+    __tablename__ = "client_enrichments"
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    niche = Column(String(50), nullable=True)
+    channel_name = Column(String(255), nullable=True)
+    channel_size_bucket = Column(String(20), nullable=True)
+    temperature = Column(String(20), nullable=True)
+    communication_style = Column(String(30), nullable=True)
+    price_sensitivity = Column(String(20), nullable=True)
+    decision_speed = Column(String(20), nullable=True)
+    last_summary = Column(Text, nullable=True)
+    pain_points = Column(JSON, nullable=True)
+    value_drivers = Column(JSON, nullable=True)
+    next_best_action = Column(Text, nullable=True)
+    ai_notes = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=datetime.utcnow, nullable=False)
+
+
 class TodoistSyncLog(Base):
     __tablename__ = "todoist_sync_logs"
     id = Column(Integer, primary_key=True, index=True)

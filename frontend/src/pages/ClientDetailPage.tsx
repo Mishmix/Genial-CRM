@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  getClient, updateClient, markClientRead, sendMessage, getTemplates, getTags, 
+import {
+  getClient, updateClient, markClientRead, sendMessage, getTemplates, getTags,
   archiveClient, unarchiveClient, deleteClient, createReminder, completeReminder, deleteReminder,
   createOrder, updateOrder, deleteOrder, getOrders, getRejectionReasons, getOrderStats, mergeClients, searchClients,
+  getClientEnrichment, refreshClientEnrichment, ClientEnrichment,
   ClientDetail, Template, Tag, Order, RejectionReason, Client
 } from '../api';
 import PageWrapper from '../components/PageWrapper';
@@ -90,8 +91,37 @@ export default function ClientDetailPage() {
   // Timeline tab
   const [activeTab, setActiveTab] = useState<'messages' | 'timeline'>('messages');
 
+  // AI enrichment for this client (lazy-loaded)
+  const [enrichment, setEnrichment] = useState<ClientEnrichment | null>(null);
+  const [enrichmentLoading, setEnrichmentLoading] = useState(false);
+  const [enrichmentRefreshing, setEnrichmentRefreshing] = useState(false);
+
+  const loadEnrichment = async (clientId: number) => {
+    setEnrichmentLoading(true);
+    try {
+      const data = await getClientEnrichment(clientId);
+      setEnrichment(data);
+    } catch (err) { console.error('enrichment load failed:', err); }
+    finally { setEnrichmentLoading(false); }
+  };
+
+  const handleRefreshEnrichment = async () => {
+    if (!client) return;
+    if (!confirm('Поставить клиента в очередь на AI-обогащение в следующем routine? Подождите до 24 часов.')) return;
+    setEnrichmentRefreshing(true);
+    try {
+      await refreshClientEnrichment(client.id);
+      alert('Готово — клиент будет обогащён при следующем запуске Daily Client Enrichment routine.');
+    } catch (err) { console.error('refresh failed:', err); }
+    finally { setEnrichmentRefreshing(false); }
+  };
+
   useEffect(() => {
-    if (id) { loadClient(parseInt(id)); loadTemplates(); loadTags(); loadOrders(parseInt(id)); loadRejectionReasons(); }
+    if (id) {
+      const cid = parseInt(id);
+      loadClient(cid); loadTemplates(); loadTags(); loadOrders(cid); loadRejectionReasons();
+      loadEnrichment(cid);
+    }
   }, [id]);
 
   // Real-time message updates
@@ -626,6 +656,14 @@ export default function ClientDetailPage() {
             </div>
           </div>
 
+          {/* AI Profile */}
+          <AIProfileCard
+            enrichment={enrichment}
+            loading={enrichmentLoading}
+            refreshing={enrichmentRefreshing}
+            onRefresh={handleRefreshEnrichment}
+          />
+
           {/* Details */}
           <div className="card p-6">
             <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-4">Информация</h3>
@@ -1127,5 +1165,124 @@ export default function ClientDetailPage() {
       </Modal>
       </div>
     </PageWrapper>
+  );
+}
+
+
+function AIProfileCard({
+  enrichment, loading, refreshing, onRefresh,
+}: {
+  enrichment: ClientEnrichment | null;
+  loading: boolean;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const tempColor: Record<string, string> = {
+    hot: 'text-red-400 bg-red-500/15 border-red-500/30',
+    warm: 'text-amber-400 bg-amber-500/15 border-amber-500/30',
+    cold: 'text-sky-400 bg-sky-500/15 border-sky-500/30',
+  };
+
+  const reviewedAgo = (() => {
+    if (!enrichment?.reviewed_at) return null;
+    const ms = Date.now() - new Date(enrichment.reviewed_at).getTime();
+    const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'сегодня';
+    if (days === 1) return 'вчера';
+    return `${days} дн назад`;
+  })();
+
+  return (
+    <div className="card p-6 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-violet-500/15 to-fuchsia-500/5 rounded-[20px] pointer-events-none" />
+      <div className="relative z-10">
+        <div className="flex items-start justify-between mb-4">
+          <h3 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider flex items-center gap-2">
+            <span>🧠</span> AI Profile
+          </h3>
+          <button
+            onClick={onRefresh}
+            disabled={refreshing}
+            title="Поставить на переобогащение в следующем routine"
+            className="btn btn-ghost btn-sm"
+          >
+            {refreshing ? '…' : '↻ Refresh now'}
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="text-sm text-[var(--text-muted)]">Загрузка…</div>
+        ) : !enrichment ? (
+          <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] text-sm text-[var(--text-muted)]">
+            AI-профиль ещё не сформирован. Будет заполнен ближайшим запуском
+            Daily Client Enrichment routine (~06:00 Тбилиси).
+          </div>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                ['Ниша', enrichment.niche],
+                ['Канал', enrichment.channel_name],
+                ['Размер', enrichment.channel_size_bucket],
+                ['Стиль', enrichment.communication_style],
+                ['Цена', enrichment.price_sensitivity],
+                ['Скорость решений', enrichment.decision_speed],
+              ].filter(([, v]) => v).map(([k, v]) => (
+                <div key={k as string} className="p-2 rounded-lg bg-[var(--bg-secondary)] border border-[var(--border)]">
+                  <div className="text-[10px] text-[var(--text-muted)] uppercase">{k}</div>
+                  <div className="font-medium">{v}</div>
+                </div>
+              ))}
+              {enrichment.temperature && (
+                <div className={`p-2 rounded-lg border ${tempColor[enrichment.temperature] || 'border-[var(--border)]'}`}>
+                  <div className="text-[10px] uppercase">Температура</div>
+                  <div className="font-medium">{enrichment.temperature.toUpperCase()}</div>
+                </div>
+              )}
+            </div>
+
+            {enrichment.last_summary && (
+              <div>
+                <div className="text-[10px] text-[var(--text-muted)] uppercase mb-1">Сводка</div>
+                <div className="text-sm">{enrichment.last_summary}</div>
+              </div>
+            )}
+
+            {enrichment.next_best_action && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                <div className="text-[10px] text-emerald-400 uppercase mb-1">Next best action</div>
+                <div className="font-semibold">{enrichment.next_best_action}</div>
+              </div>
+            )}
+
+            {enrichment.pain_points && enrichment.pain_points.length > 0 && (
+              <div>
+                <div className="text-[10px] text-[var(--text-muted)] uppercase mb-1">Pain points</div>
+                <div className="flex flex-wrap gap-1">
+                  {enrichment.pain_points.map((p, i) => (
+                    <span key={i} className="px-2 py-1 rounded-md text-xs bg-rose-500/15 text-rose-300 border border-rose-500/30">{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {enrichment.value_drivers && enrichment.value_drivers.length > 0 && (
+              <div>
+                <div className="text-[10px] text-[var(--text-muted)] uppercase mb-1">Почему покупает</div>
+                <div className="flex flex-wrap gap-1">
+                  {enrichment.value_drivers.map((p, i) => (
+                    <span key={i} className="px-2 py-1 rounded-md text-xs bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">{p}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {reviewedAgo && (
+              <div className="text-[11px] text-[var(--text-muted)] text-right">Last reviewed: {reviewedAgo}</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
