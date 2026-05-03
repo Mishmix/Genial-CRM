@@ -52,7 +52,7 @@ def require_routine_token(
 
 # ---------- Prompts CRUD (admin) ----------
 
-ALLOWED_PROMPT_KEYS = {"prompt_morning_digest", "prompt_evening_strategist", "prompt_todoist_sync"}
+ALLOWED_PROMPT_KEYS = {"prompt_morning_digest", "prompt_evening_strategist", "prompt_todoist_sync", "prompt_client_enrichment"}
 
 
 class PromptUpdate(BaseModel):
