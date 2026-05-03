@@ -7,8 +7,9 @@ shell access).
 import asyncio
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
+from app.api.deps import get_current_user
 from app.api.routes_digest import require_routine_token
 from app.db import get_db
 from app.scripts.cleanup_orphan_orders import cleanup
@@ -84,6 +85,40 @@ async def admin_seed_reactivation_templates(db=Depends(get_db)):
         created.append(category)
     db.commit()
     return {"created": created, "skipped": skipped}
+
+
+@router.get("/admin/reactivation-candidates")
+async def admin_reactivation_candidates(db=Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Same detector as morning digest, exposed for the Mini App's ReactivationPage."""
+    from app.services.rejection_reactivation import detect_reactivation_candidates
+    from app.utils.timezone import now_georgia
+    return await detect_reactivation_candidates(db, now_georgia(), top_n=200)
+
+
+@router.post("/reactivation/mark-attempt")
+async def mark_reactivation_attempt(
+    payload: Dict[str, Any] = Body(...),
+    db=Depends(get_db),
+    _user: dict = Depends(get_current_user),
+):
+    """Increment reactivation_attempts on a Conversation. Called from Mini App."""
+    from app.models import Conversation
+    from app.utils.timezone import now_georgia
+    conv_id = payload.get("conversation_id")
+    if not conv_id:
+        raise HTTPException(status_code=400, detail="conversation_id required")
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    conv.reactivation_attempts = (conv.reactivation_attempts or 0) + 1
+    conv.last_reactivation_at = now_georgia()
+    db.commit()
+    return {
+        "ok": True,
+        "conversation_id": conv.id,
+        "reactivation_attempts": conv.reactivation_attempts,
+        "last_reactivation_at": conv.last_reactivation_at.isoformat(),
+    }
 
 
 @router.get("/admin/detectors-smoke", dependencies=[Depends(require_routine_token)])

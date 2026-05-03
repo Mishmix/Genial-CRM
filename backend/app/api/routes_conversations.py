@@ -163,8 +163,53 @@ def update_conversation(
     conversation.updated_at = now_georgia()
     db.commit()
     db.refresh(conversation)
-    
+
+    # Realtime classification of rejection text — fire-and-forget. Backfill
+    # via /api/admin/classify-rejections picks up anything that fails here.
+    if (
+        conversation.status == "rejected"
+        and conversation.rejection_normalized_category is None
+        and (conversation.rejection_reason or conversation.rejection_custom)
+    ):
+        import asyncio as _asyncio
+        _asyncio.create_task(_classify_rejection_bg(conversation.id))
+
     return _conversation_to_response(conversation)
+
+
+async def _classify_rejection_bg(conversation_id: int) -> None:
+    from app.db import SessionLocal
+    from app.llm.rejection_classifier import classify_rejection
+    from app.models import Message
+    from sqlalchemy import desc as _desc
+    db = SessionLocal()
+    try:
+        conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+        if not conv:
+            return
+        msgs = (
+            db.query(Message)
+            .filter(Message.conversation_id == conv.id)
+            .order_by(_desc(Message.sent_at))
+            .limit(10)
+            .all()
+        )
+        msgs.reverse()
+        context = "\n".join(
+            f"{'OUT' if m.direction == 'out' else 'IN'}: {(m.transcription if m.message_type == 'voice' else m.text) or ''}"
+            for m in msgs
+        )
+        raw = (conv.rejection_custom or conv.rejection_reason or "")
+        try:
+            category, confidence = await classify_rejection(raw, context, db)
+        except Exception:
+            category, confidence = ("other", 0.0)
+        conv.rejection_normalized_category = category
+        conv.rejection_classification_confidence = confidence
+        conv.rejection_classified_at = now_georgia()
+        db.commit()
+    finally:
+        db.close()
 
 
 @router.delete("/{conversation_id}")
