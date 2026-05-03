@@ -52,13 +52,7 @@ def require_routine_token(
 
 # ---------- Prompts CRUD (admin) ----------
 
-ALLOWED_PROMPT_KEYS = {
-    "prompt_morning_digest",
-    "prompt_evening_strategist",
-    "prompt_todoist_sync",
-    "prompt_client_enrichment",
-    "prompt_rejection_classifier",
-}
+ALLOWED_PROMPT_KEYS = {"prompt_morning_digest", "prompt_evening_strategist", "prompt_todoist_sync", "prompt_client_enrichment"}
 
 
 class PromptUpdate(BaseModel):
@@ -221,28 +215,7 @@ async def digest_data(
     }
     if type == "morning":
         response["todoist"] = await _morning_todoist_block(db, now)
-        response["money_at_risk"] = await _safe_detect("money_at_risk", db, now)
-        response["predictive_reorders"] = await _safe_detect("predictive_reorders", db, now)
-        response["rejection_reactivation"] = await _safe_detect("rejection_reactivation", db, now)
     return response
-
-
-async def _safe_detect(kind: str, db: Session, now: datetime) -> list:
-    """Run one of the three detectors; never raise — return [] on any error."""
-    try:
-        if kind == "money_at_risk":
-            from app.services.money_at_risk import detect_money_at_risk
-            return await detect_money_at_risk(db, now)
-        if kind == "predictive_reorders":
-            from app.services.predictive_reorders import detect_predictive_reorders
-            return await detect_predictive_reorders(db, now)
-        if kind == "rejection_reactivation":
-            from app.services.rejection_reactivation import detect_reactivation_candidates
-            return await detect_reactivation_candidates(db, now)
-        return []
-    except Exception as exc:
-        logger.warning(f"detector {kind} failed: {exc}")
-        return []
 
 
 async def _morning_todoist_block(db: Session, now: datetime) -> Optional[dict]:

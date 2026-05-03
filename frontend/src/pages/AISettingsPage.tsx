@@ -324,21 +324,6 @@ export default function AISettingsPage() {
             onUndo={handleUndoPrompt}
           />
 
-          {/* AI-Manager: Rejection Classifier prompt */}
-          <PromptEditorSection
-            promptKey="prompt_rejection_classifier"
-            title="🚫 Rejection Classifier промпт"
-            subtitle="Классификация причин отказа на 9 категорий (для Re-engagement блока в morning digest)"
-            description="При каждом отказе AI определяет normalized_category (too_expensive / no_urgency / chose_competitor / …). Влияет на блок «🔄 Реактивация» в утреннем дайджесте и на ReactivationPage в Mini App."
-            saving={saving}
-            saved={saved}
-            prompts={prompts}
-            drafts={drafts}
-            setDrafts={setDrafts}
-            onSave={handleSavePrompt}
-            onUndo={handleUndoPrompt}
-          />
-
           {/* Tips */}
           <div className="card p-6 card-gradient stagger-item">
             <div className="flex items-start gap-4">

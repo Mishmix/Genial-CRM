@@ -334,39 +334,6 @@ export async function runSheetsExportManual() {
   return request<any>('/sheets/export/run-manual', { method: 'POST' });
 }
 
-// Reactivation (rejection re-engagement)
-export interface ReactivationCandidate {
-  conversation_id: number;
-  client_id: number;
-  client_name: string;
-  deep_link: string | null;
-  rejected_at: string;
-  days_since_rejection: number;
-  normalized_category: string;
-  category_label: string;
-  raw_reason_excerpt: string;
-  reactivation_attempts: number;
-  last_attempt_at: string | null;
-  suggested_template_id: number | null;
-  suggested_template_preview: string;
-  avg_check: number | null;
-}
-
-export async function getReactivationCandidates() {
-  // Routine endpoint requires X-Routine-Token; we proxy through digest data for the morning digest.
-  // For UI we hit /digest/data?type=morning and pull rejection_reactivation.
-  // Mini App is admin-session, so we fetch via the same admin path…
-  // Actually, /digest/data needs routine token → use admin one below.
-  return request<any>('/admin/reactivation-candidates');
-}
-
-export async function markReactivationAttempt(conversationId: number) {
-  return request<{ ok: boolean; conversation_id: number; reactivation_attempts: number; last_reactivation_at: string }>(
-    '/reactivation/mark-attempt',
-    { method: 'POST', body: JSON.stringify({ conversation_id: conversationId }) },
-  );
-}
-
 // Reminders
 export interface Reminder {
   id: number;

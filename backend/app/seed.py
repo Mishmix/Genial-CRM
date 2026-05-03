@@ -30,53 +30,7 @@ def seed_database(db: Session):
     from app.seed_prompts import seed_prompts
     seed_prompts(db)
 
-    # Seed reactivation templates (8 categories)
-    seed_reactivation_templates(db)
-
     logger.info("Database seeded successfully")
-
-
-REACTIVATION_TEMPLATES = [
-    ("reactivation_too_expensive", "ru",
-     "Привет, {first_name}! Делаю даунселл-вариант обложки за 50% обычного прайса — для своих. Если актуально — могу сегодня прислать"),
-    ("reactivation_no_urgency", "ru",
-     "Привет, {first_name}! Видел канал растёт — обычно как раз в этой стадии нужны новые обложки под алгоритм. Готов под тебя слот следующая неделя?"),
-    ("reactivation_chose_competitor", "ru",
-     "Привет, {first_name}! Как зашло сотрудничество? Если хочешь сравнить — могу сделать тестовую обложку бесплатно, посмотришь разницу"),
-    ("reactivation_ghosting", "ru",
-     "Привет, {first_name}! Хотел уточнить — актуально ещё или закрываем?"),
-    ("reactivation_value_unclear", "ru",
-     "Привет, {first_name}! Покажу пару кейсов где обложка дала +30% CTR за неделю — посмотришь?"),
-    ("reactivation_no_budget", "ru",
-     "Привет, {first_name}! Есть мысль — могу сделать одну тестовую обложку бесплатно, если зайдёт — продолжим. Интересно?"),
-    ("reactivation_scope_mismatch", "ru",
-     "Привет, {first_name}! У меня тут расширили услуги — теперь делаем и баннеры/оформление. Если что-то из этого подходит — пиши"),
-    ("reactivation_timing_mismatch", "ru",
-     "Привет, {first_name}! Прошло время — сейчас как раз могу взять. Актуально ещё?"),
-]
-
-
-def seed_reactivation_templates(db: Session):
-    """Insert reactivation templates only if they don't exist (by category+language)."""
-    from app.models import Template
-    for category, language, content in REACTIVATION_TEMPLATES:
-        existing = (
-            db.query(Template)
-            .filter(Template.category == category, Template.language == language)
-            .first()
-        )
-        if existing:
-            continue
-        name = category.replace("reactivation_", "").replace("_", " ").title()
-        db.add(Template(
-            name=f"Реактивация: {name}",
-            language=language,
-            content=content,
-            is_auto_reply=False,
-            category=category,
-            is_active=True,
-        ))
-    db.commit()
 
 
 def seed_admins(db: Session):

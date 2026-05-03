@@ -10,7 +10,6 @@ const navItems = [
   { path: '/orders', label: 'Заказы', icon: '📦', desc: 'Доска заказов', shortcut: '⌘3' },
   { path: '/templates', label: 'Шаблоны', icon: '📝', desc: 'Быстрые ответы', shortcut: '⌘4' },
   { path: '/ai', label: 'AI', icon: '🤖', desc: 'Классификация' },
-  { path: '/reactivation', label: 'Реактивация', icon: '🔄', desc: 'Старые отказы' },
   { path: '/export', label: 'Экспорт', icon: '📤', desc: 'Выгрузка данных' },
   { path: '/settings', label: 'Настройки', icon: '⚙️', desc: 'Параметры', shortcut: '⌘5' },
 ];

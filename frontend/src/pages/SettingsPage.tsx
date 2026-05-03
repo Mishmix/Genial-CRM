@@ -700,9 +700,6 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* === MONEY-AT-RISK / PREDICTIVE / REACTIVATION PARAMS === */}
-          <MoneyAtRiskSettingsBlock />
-
           {/* === AUTO-REPLY TOGGLE === */}
           <div className="card p-6 stagger-item">
             <div className="absolute inset-0 bg-gradient-to-br from-teal-500/20 to-cyan-500/10 rounded-[20px]" />
@@ -1178,76 +1175,5 @@ export default function SettingsPage() {
         </div>
       </div>
     </PageWrapper>
-  );
-}
-
-
-const MAR_SETTINGS = [
-  { key: 'money_at_risk_no_reply_hours', label: 'Сколько рабочих часов молчания на цена-вопрос → попадает в Money-at-Risk', defaultValue: '12', placeholder: '12' },
-  { key: 'predictive_min_orders', label: 'Минимум завершённых заказов для попадания в Predictive Reorders', defaultValue: '3', placeholder: '3' },
-  { key: 'predictive_max_cv', label: 'Максимальный coefficient of variation интервалов (стабильность паттерна)', defaultValue: '0.4', placeholder: '0.4' },
-  { key: 'reactivation_cooldown_days', label: 'Сколько дней должно пройти после отказа до первой попытки реактивации', defaultValue: '14', placeholder: '14' },
-  { key: 'reactivation_max_attempts', label: 'Максимум попыток реактивации одного клиента', defaultValue: '2', placeholder: '2' },
-];
-
-function MoneyAtRiskSettingsBlock() {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Load current values once via getSettings (which doesn't expose these — we read raw)
-    // For simplicity, just leave inputs with placeholder and let user enter explicit values.
-  }, []);
-
-  const handleSave = async (key: string) => {
-    const v = values[key] ?? '';
-    if (!v.trim()) return;
-    setSaving(key); setSaved(null);
-    try {
-      await updateSetting(key, v.trim());
-      setSaved(key); setTimeout(() => setSaved(null), 2000);
-    } catch (err: any) {
-      alert(err?.message || 'Не удалось сохранить');
-    } finally { setSaving(null); }
-  };
-
-  return (
-    <div className="card p-6 stagger-item relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-rose-500/15 to-orange-500/5 rounded-[20px]" />
-      <div className="relative z-10">
-        <div className="flex items-start gap-4 mb-5">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 flex items-center justify-center text-3xl shadow-lg" style={{ boxShadow: '0 8px 30px -5px rgba(244,63,94,0.5)' }}>🎯</div>
-          <div>
-            <h3 className="font-semibold text-lg text-[var(--text-primary)]">Money-at-Risk / Predictive / Reactivation</h3>
-            <p className="text-sm text-[var(--text-secondary)]">Параметры для трёх дополнительных блоков утреннего дайджеста. Меняй осторожно — слишком чувствительные пороги дадут спам, слишком жёсткие — пропуски.</p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {MAR_SETTINGS.map(s => (
-            <div key={s.key} className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)]">
-              <div className="text-xs text-[var(--text-muted)] mb-1">{s.label}</div>
-              <div className="flex gap-2 items-center">
-                <code className="text-xs text-[var(--text-muted)] min-w-[260px]">{s.key}</code>
-                <input
-                  className="input flex-1 font-mono"
-                  placeholder={`default: ${s.defaultValue}`}
-                  value={values[s.key] ?? ''}
-                  onChange={e => setValues(prev => ({ ...prev, [s.key]: e.target.value }))}
-                />
-                <button
-                  onClick={() => handleSave(s.key)}
-                  disabled={saving === s.key || !(values[s.key] ?? '').trim()}
-                  className="btn btn-primary btn-sm"
-                >
-                  {saving === s.key ? '…' : saved === s.key ? '✓' : 'Set'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
   );
 }
