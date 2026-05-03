@@ -20,21 +20,7 @@ MORNING_DIGEST_PROMPT = """Ты — мой персональный AI-мене�
 - chats: список активных чатов с историей сообщений (текст + транскрипции голосовых)
 - previous_digests: твои собственные дайджесты за последние 10 дней (для понимания «что изменилось»)
 - todoist (опционально, может быть null): {today: [...], not_today_count, completed_yesterday: [...]}
-- money_at_risk: тёплые лиды где деньги застряли — у каждого item есть готовый `suggested_message`
-- predictive_reorders: постоянники у которых пора заказать новую обложку
-- rejection_reactivation: топ-5 кандидатов для реактивации старых отказов (с готовым шаблоном)
 - now_human / timezone: дата и пояс пользователя — используй для заголовка
-
-ПОРЯДОК БЛОКОВ В ВЫВОДЕ:
-1. 🔥 Деньги в риске           (только если money_at_risk не пуст)
-2. 📅 Готовы к новому заказу    (только если predictive_reorders не пуст)
-3. 🔄 Реактивация              (только если rejection_reactivation не пуст)
-4. ☀️ Утренний дайджест (P0-P4) — основная структура ниже
-5. 📊 Что изменилось со вчера
-
-В трёх новых блоках НЕ перефразируй `suggested_message` — оставляй как есть.
-Для каждого item: имя клиента (deep-link), краткое summary почему этот item тут, сама фраза.
-Пустые массивы — секцию пропустить полностью.
 
 СТРУКТУРА ВЫВОДА (markdown):
 
@@ -193,31 +179,11 @@ CLIENT_ENRICHMENT_PROMPT = """Ты — AI-аналитик в CRM фриланс
 """
 
 
-REJECTION_CLASSIFIER_PROMPT = """Ты — классификатор причин отказа клиентов фрилансера-дизайнера YouTube-обложек.
-
-Категории (ровно одна из этих 9 строк):
-- too_expensive       — клиент торгуется по цене или говорит «дорого»
-- no_urgency          — отложил, «потом», «не сейчас», «может позже»
-- chose_competitor    — выбрал другого исполнителя
-- ghosting            — перестал отвечать без объяснений
-- value_unclear       — не понял зачем / не уверен что нужно
-- no_budget           — нет денег вообще, не торг
-- scope_mismatch      — не та услуга / не подходит формат
-- timing_mismatch     — занят сейчас, отложил по времени
-- other               — всё остальное / непонятно
-
-Учитывай контекст переписки, не только последнюю фразу.
-
-Возвращай СТРОГО JSON: {"category": "<одна из 9>", "confidence": 0.0-1.0}.
-Если confidence < 0.6 — backend сам заменит на 'other'."""
-
-
 DEFAULT_PROMPTS: Dict[str, str] = {
     "prompt_morning_digest": MORNING_DIGEST_PROMPT,
     "prompt_evening_strategist": EVENING_STRATEGIST_PROMPT,
     "prompt_todoist_sync": TODOIST_SYNC_PROMPT,
     "prompt_client_enrichment": CLIENT_ENRICHMENT_PROMPT,
-    "prompt_rejection_classifier": REJECTION_CLASSIFIER_PROMPT,
 }
 
 
@@ -229,15 +195,12 @@ _PREVIOUS_DEFAULTS_HASHES: Dict[str, Set[str]] = {
     "prompt_morning_digest": {
         # v1 (pre-Todoist): seed_prompts.py from PR #1
         "5ec8d4aa947007c2a2e601c5d42f69bd2c69d7bce4fefa68484d69f2dc7b89ff",
-        # v2 (with Todoist plan block, pre money/predictive/reactivation)
-        "9aefa1b4f8fe3b28e2839e460c77fc6bc8ac8cd65a0a03fda24261b91a9b3609",
     },
     "prompt_evening_strategist": {
         "1a4d5de9ed1b254edbcd0b0bd122f60294f5c2f217aa2e8e19bd4c82136753c2",
     },
     "prompt_todoist_sync": set(),
     "prompt_client_enrichment": set(),
-    "prompt_rejection_classifier": set(),
 }
 
 
