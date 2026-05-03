@@ -179,11 +179,31 @@ CLIENT_ENRICHMENT_PROMPT = """Ты — AI-аналитик в CRM фриланс
 """
 
 
+REJECTION_CLASSIFIER_PROMPT = """Ты — классификатор причин отказа клиентов фрилансера-дизайнера YouTube-обложек.
+
+Категории (ровно одна из этих 9 строк):
+- too_expensive       — клиент торгуется по цене или говорит «дорого»
+- no_urgency          — отложил, «потом», «не сейчас», «может позже»
+- chose_competitor    — выбрал другого исполнителя
+- ghosting            — перестал отвечать без объяснений
+- value_unclear       — не понял зачем / не уверен что нужно
+- no_budget           — нет денег вообще, не торг
+- scope_mismatch      — не та услуга / не подходит формат
+- timing_mismatch     — занят сейчас, отложил по времени
+- other               — всё остальное / непонятно
+
+Учитывай контекст переписки, не только последнюю фразу.
+
+Возвращай СТРОГО JSON: {"category": "<одна из 9>", "confidence": 0.0-1.0}.
+Если confidence < 0.6 — backend сам заменит на 'other'."""
+
+
 DEFAULT_PROMPTS: Dict[str, str] = {
     "prompt_morning_digest": MORNING_DIGEST_PROMPT,
     "prompt_evening_strategist": EVENING_STRATEGIST_PROMPT,
     "prompt_todoist_sync": TODOIST_SYNC_PROMPT,
     "prompt_client_enrichment": CLIENT_ENRICHMENT_PROMPT,
+    "prompt_rejection_classifier": REJECTION_CLASSIFIER_PROMPT,
 }
 
 
@@ -201,6 +221,7 @@ _PREVIOUS_DEFAULTS_HASHES: Dict[str, Set[str]] = {
     },
     "prompt_todoist_sync": set(),
     "prompt_client_enrichment": set(),
+    "prompt_rejection_classifier": set(),
 }
 
 
