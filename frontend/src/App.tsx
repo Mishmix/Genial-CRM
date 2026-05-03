@@ -10,6 +10,7 @@ import TemplatesPage from './pages/TemplatesPage';
 import AISettingsPage from './pages/AISettingsPage';
 import SettingsPage from './pages/SettingsPage';
 import ExportPage from './pages/ExportPage';
+import ReactivationPage from './pages/ReactivationPage';
 import Layout from './components/Layout';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route path="orders" element={<PageWrapper><OrdersPage /></PageWrapper>} />
         <Route path="templates" element={<PageWrapper><TemplatesPage /></PageWrapper>} />
         <Route path="ai" element={<PageWrapper><AISettingsPage /></PageWrapper>} />
+        <Route path="reactivation" element={<PageWrapper><ReactivationPage /></PageWrapper>} />
         <Route path="export" element={<PageWrapper><ExportPage /></PageWrapper>} />
         <Route path="settings" element={<PageWrapper><SettingsPage /></PageWrapper>} />
       </Route>
