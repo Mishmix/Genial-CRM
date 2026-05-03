@@ -52,7 +52,7 @@ def require_routine_token(
 
 # ---------- Prompts CRUD (admin) ----------
 
-ALLOWED_PROMPT_KEYS = {"prompt_morning_digest", "prompt_evening_strategist"}
+ALLOWED_PROMPT_KEYS = {"prompt_morning_digest", "prompt_evening_strategist", "prompt_todoist_sync"}
 
 
 class PromptUpdate(BaseModel):
@@ -204,7 +204,7 @@ async def digest_data(
             "messages": [_serialize_message(m) for m in msgs],
         })
 
-    return {
+    response = {
         "type": type,
         "now": now.isoformat(),
         "now_human": _format_now_ru(now),
@@ -213,6 +213,42 @@ async def digest_data(
         "period_end": now.isoformat(),
         "chats": chats,
     }
+    if type == "morning":
+        response["todoist"] = await _morning_todoist_block(db, now)
+    return response
+
+
+async def _morning_todoist_block(db: Session, now: datetime) -> Optional[dict]:
+    """Today's plan + yesterday's wins from Todoist. Returns None on any error
+    so the morning digest never fails because Todoist is down/misconfigured."""
+    try:
+        from app.integrations.todoist import list_active_tasks, list_completed_tasks
+        api_token = get_setting(db, "todoist_api_token")
+        project_id = get_setting(db, "todoist_project_id")
+        if not api_token or not project_id:
+            return None
+        today = now.date().isoformat()
+        yesterday_start = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        active = await list_active_tasks(api_token, project_id)
+        completed = await list_completed_tasks(api_token, project_id, yesterday_start)
+        today_tasks = [
+            {"content": t["content"], "due_string": t.get("due_string"), "url": t.get("url")}
+            for t in active
+            if (t.get("section_name") or "").strip().lower() == "today"
+            or t.get("due_date") == today
+        ]
+        not_today_count = sum(1 for t in active if t not in today_tasks)
+        return {
+            "today": today_tasks,
+            "not_today_count": not_today_count,
+            "completed_yesterday": [
+                {"content": t.get("content"), "completed_at": t.get("completed_at")}
+                for t in completed
+            ],
+        }
+    except Exception as exc:
+        logger.warning(f"morning todoist block failed: {exc}")
+        return None
 
 
 _WEEKDAYS_RU = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]

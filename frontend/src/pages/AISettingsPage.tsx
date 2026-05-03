@@ -294,6 +294,21 @@ export default function AISettingsPage() {
             onUndo={handleUndoPrompt}
           />
 
+          {/* AI-Manager: Todoist Sync prompt */}
+          <PromptEditorSection
+            promptKey="prompt_todoist_sync"
+            title="🗂 Todoist Sync промпт"
+            subtitle="Вечерняя сверка Todoist с реальностью переписок (22:00 GMT+4)"
+            description="Описывает правила: когда создавать задачу, когда закрывать по факту переписки, когда переносить дедлайн, что считать «мёртвой» задачей. Меняй здесь — следующий запуск sync routine подхватит автоматически."
+            saving={saving}
+            saved={saved}
+            prompts={prompts}
+            drafts={drafts}
+            setDrafts={setDrafts}
+            onSave={handleSavePrompt}
+            onUndo={handleUndoPrompt}
+          />
+
           {/* Tips */}
           <div className="card p-6 card-gradient stagger-item">
             <div className="flex items-start gap-4">

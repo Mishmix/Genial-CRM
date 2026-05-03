@@ -209,6 +209,18 @@ class Digest(Base):
     __table_args__ = (Index("ix_digests_created_at", "created_at"),)
 
 
+class TodoistSyncLog(Base):
+    __tablename__ = "todoist_sync_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    started_at = Column(DateTime, server_default=func.now(), nullable=False, index=True)
+    summary_md = Column(Text, nullable=True)
+    applied_count = Column(Integer, default=0, nullable=False)
+    failed_count = Column(Integer, default=0, nullable=False)
+    actions_json = Column(JSON, nullable=True)
+    routine_session_url = Column(String(512), nullable=True)
+    telegram_message_id = Column(Integer, nullable=True)
+
+
 class DailyStats(Base):
     __tablename__ = "daily_stats"
     date = Column(String(10), primary_key=True)
