@@ -5,6 +5,7 @@ All `/digest/*` endpoints are auth'd via `X-Routine-Token` header (Setting key
 existing admin session.
 """
 import html
+import os
 import secrets
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -206,10 +207,22 @@ async def digest_data(
     return {
         "type": type,
         "now": now.isoformat(),
+        "now_human": _format_now_ru(now),
+        "timezone": "Asia/Tbilisi (UTC+4)",
         "period_start": period_start.isoformat(),
         "period_end": now.isoformat(),
         "chats": chats,
     }
+
+
+_WEEKDAYS_RU = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+_MONTHS_RU = ["января", "февраля", "марта", "апреля", "мая", "июня",
+              "июля", "августа", "сентября", "октября", "ноября", "декабря"]
+
+
+def _format_now_ru(dt: datetime) -> str:
+    """`понедельник, 3 мая 2026, 04:25` — readable timestamp the routine can quote in the digest header."""
+    return f"{_WEEKDAYS_RU[dt.weekday()]}, {dt.day} {_MONTHS_RU[dt.month - 1]} {dt.year}, {dt.strftime('%H:%M')}"
 
 
 @router.get("/digests/recent", dependencies=[Depends(require_routine_token)])
@@ -325,7 +338,9 @@ def _markdown_to_telegram_html(md: str) -> str:
 
 
 def _admin_chat_id(db: Session) -> Optional[int]:
-    raw = get_setting(db, "admin_telegram_ids")
+    # Prefer the value the user edited via Mini App; fall back to the env var
+    # that fresh Railway deploys ship with so deliver works out of the box.
+    raw = get_setting(db, "admin_telegram_ids") or os.environ.get("ADMIN_TELEGRAM_IDS", "")
     if not raw:
         return None
     for part in raw.split(","):
