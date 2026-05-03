@@ -86,13 +86,16 @@ async def log_all_updates(update: Update, context):
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     global telegram_app, backup_task
-    
+
+    print("startup: lifespan_enter", flush=True)
     setup_logging()
     logger.info("Starting CRM Bot...")
-    
+    print("startup: imports_done", flush=True)
+
     # Initialize database
     init_db()
     logger.info("Database initialized")
+    print("startup: init_db_done", flush=True)
     
     # Load settings from database into environment
     from app.config import load_settings_from_db, clear_settings_cache
@@ -104,12 +107,14 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     
     # Seed database with defaults
+    print("startup: seed_database_begin", flush=True)
     db = SessionLocal()
     try:
         seed_database(db)
     finally:
         db.close()
-    
+    print("startup: seed_database_done", flush=True)
+
     # Initialize Telegram bot
     if settings.telegram_bot_token:
         telegram_app = get_application()
