@@ -309,6 +309,21 @@ export default function AISettingsPage() {
             onUndo={handleUndoPrompt}
           />
 
+          {/* AI-Manager: Client Enrichment prompt */}
+          <PromptEditorSection
+            promptKey="prompt_client_enrichment"
+            title="🧠 Client Enrichment промпт"
+            subtitle="Тихое обогащение клиентов AI-профилем (06:00 GMT+4, до 30 в день)"
+            description="Что ровно AI должен извлечь из переписки: niche / temperature / стиль общения / ценовая чувствительность / next best action. Эти данные потом видны в Mini App → Карточка клиента → блок «AI Profile» и в Google Sheets."
+            saving={saving}
+            saved={saved}
+            prompts={prompts}
+            drafts={drafts}
+            setDrafts={setDrafts}
+            onSave={handleSavePrompt}
+            onUndo={handleUndoPrompt}
+          />
+
           {/* Tips */}
           <div className="card p-6 card-gradient stagger-item">
             <div className="flex items-start gap-4">
