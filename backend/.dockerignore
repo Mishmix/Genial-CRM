@@ -1,0 +1,39 @@
+# Speed up build context upload + keep runtime image lean.
+# The Node build stage handles frontend/ separately via explicit COPY,
+# so excluding it from the main COPY is safe.
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.mypy_cache/
+
+# Heavy frontend deps — node_modules is rebuilt fresh in stage 1
+frontend/node_modules/
+frontend/dist/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Local env files (Railway injects vars at runtime)
+.env
+.env.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Local backups
+backups/
+
+# Avatars uploaded at runtime
+avatars/
+
+# Editor
+.idea/
+.vscode/
