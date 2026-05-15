@@ -5,14 +5,29 @@ from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Try to use langdetect, fallback to simple heuristics
-try:
-    from langdetect import detect as langdetect_detect
-    from langdetect import LangDetectException
-    HAS_LANGDETECT = True
-except ImportError:
-    HAS_LANGDETECT = False
-    LangDetectException = Exception
+# langdetect is loaded lazily inside detect_language() on first call —
+# pulls in ~8 MB of profile data which we don't need at process start.
+# Module-level state stays simple: we just remember whether import succeeded.
+_langdetect_module = None  # populated on first use; sentinel False = import failed
+HAS_LANGDETECT = True  # provisional; flipped to False on first failed import attempt
+LangDetectException = Exception  # rebound to real class once langdetect is loaded
+
+
+def _get_langdetect():
+    """Return langdetect module on demand, or None if unavailable."""
+    global _langdetect_module, HAS_LANGDETECT, LangDetectException
+    if _langdetect_module is False:
+        return None
+    if _langdetect_module is None:
+        try:
+            import langdetect as _ld
+            _langdetect_module = _ld
+            LangDetectException = _ld.LangDetectException
+        except ImportError:
+            _langdetect_module = False
+            HAS_LANGDETECT = False
+            return None
+    return _langdetect_module
 
 
 # Language code mapping
@@ -80,10 +95,11 @@ async def detect_language(
             return LANG_MAP.get(user_language_code, "en")
         return "en"
     
-    # Try langdetect first
-    if HAS_LANGDETECT:
+    # Try langdetect first (lazy-loaded on first use)
+    ld = _get_langdetect()
+    if ld is not None:
         try:
-            detected = langdetect_detect(text)
+            detected = ld.detect(text)
             mapped = LANG_MAP.get(detected)
             if mapped:
                 return mapped
