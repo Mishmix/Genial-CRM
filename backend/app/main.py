@@ -120,12 +120,16 @@ async def lifespan(app: FastAPI):
         telegram_app = get_application()
         
         if telegram_app:
-            # Add debug handler for all updates (lowest priority)
-            telegram_app.add_handler(
-                TypeHandler(Update, log_all_updates),
-                group=-1  # Run before other handlers
-            )
-            
+            # Add verbose update logger only when DEBUG_TELEGRAM=1.
+            # In production this serializes every Update via to_dict() on each
+            # webhook call (15-50 KB string per call) — wasted CPU and log volume.
+            import os as _os
+            if _os.environ.get("DEBUG_TELEGRAM") == "1":
+                telegram_app.add_handler(
+                    TypeHandler(Update, log_all_updates),
+                    group=-1  # Run before other handlers
+                )
+
             # Add handlers for business messages
             telegram_app.add_handler(
                 MessageHandler(
