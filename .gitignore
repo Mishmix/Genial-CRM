@@ -45,3 +45,4 @@ avatars/
 .coverage
 htmlcov/
 .pytest_cache/
+static/

@@ -254,9 +254,18 @@ app.include_router(ws_router)
 app.mount("/avatars", StaticFiles(directory=str(AVATARS_DIR)), name="avatars")
 
 
+# Path to bundled frontend SPA (populated by root Dockerfile stage 1).
+# When absent (e.g. local dev where you run `npm run dev` separately),
+# `/` falls back to a JSON status so existing scripts/healthchecks keep working.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "static"
+
+
 @app.get("/")
 async def root():
-    """Health check endpoint."""
+    """Serve frontend index.html when bundled, else JSON status."""
+    index = FRONTEND_DIR / "index.html"
+    if index.is_file():
+        return FileResponse(index)
     return {"status": "ok", "service": "crm-bot"}
 
 
@@ -322,3 +331,42 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Internal server error"},
     )
+
+
+# --- Frontend SPA serving ---------------------------------------------------
+# Mounted LAST so explicit routes above (api, ws, avatars, telegram/*, health,
+# /) win the match. Only active when the bundled SPA is present in the image.
+if FRONTEND_DIR.is_dir():
+    _assets_dir = FRONTEND_DIR / "assets"
+    if _assets_dir.is_dir():
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(_assets_dir)),
+            name="frontend-assets",
+        )
+
+    # Reserved server-side prefixes — never shadow them with the SPA fallback.
+    # Existing routers handle valid paths under these prefixes; anything else
+    # under them is a real 404 (caller bug), not a route to render.
+    _RESERVED_PREFIXES = ("api/", "ws", "avatars/", "telegram/", "assets/")
+
+    # SPA catch-all: serves real files from the dist root (favicon.ico, vite.svg,
+    # robots.txt, etc.) and falls back to index.html for client-side router paths
+    # like /clients/123 or /reactivation. Registered AFTER all explicit routes
+    # so /api/*, /ws, /avatars/*, /telegram/* keep working unchanged.
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_catch_all(full_path: str):
+        # Don't render SPA for paths owned by API/WS/etc — those are real 404s.
+        for prefix in _RESERVED_PREFIXES:
+            if full_path == prefix.rstrip("/") or full_path.startswith(prefix):
+                return JSONResponse(status_code=404, content={"detail": "not found"})
+        # Block path traversal: resolved candidate must stay inside FRONTEND_DIR.
+        candidate = (FRONTEND_DIR / full_path).resolve()
+        try:
+            candidate.relative_to(FRONTEND_DIR.resolve())
+        except ValueError:
+            return JSONResponse(status_code=404, content={"detail": "not found"})
+        if candidate.is_file():
+            return FileResponse(candidate)
+        # Otherwise hand off to the SPA so React Router can resolve the route.
+        return FileResponse(FRONTEND_DIR / "index.html")
