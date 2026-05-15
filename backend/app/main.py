@@ -301,19 +301,16 @@ async def telegram_webhook(request: Request):
 
 @app.post("/telegram/about-webhook")
 async def telegram_about_webhook(request: Request):
-    """Telegram webhook endpoint for About bot in production."""
-    from app.telegram.about_bot import _about_app
-    
-    if not _about_app:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "About Bot not initialized"},
-        )
-    
+    """Telegram webhook endpoint for About bot.
+
+    Delegates to the lite handler in about_bot, which talks to api.telegram.org
+    directly via httpx (no python-telegram-bot Application instance).
+    """
+    from app.telegram.about_bot import handle_about_update
+
     try:
         data = await request.json()
-        update = Update.de_json(data, _about_app.bot)
-        await _about_app.process_update(update)
+        await handle_about_update(data)
         return {"ok": True}
     except Exception as e:
         logger.error(f"About Webhook error: {type(e).__name__}: {e}")
