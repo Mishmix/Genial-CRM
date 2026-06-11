@@ -58,6 +58,10 @@ ALLOWED_PROMPT_KEYS = {
     "prompt_todoist_sync",
     "prompt_client_enrichment",
     "prompt_rejection_classifier",
+    # Sales doctrine — loaded by Morning Manager only in the draft-generation
+    # phase, not during high-level digest assembly. Lives separately so the
+    # ~30K-token doctrine doesn't bloat the digest-structure prompt.
+    "prompt_sales_doctrine",
 }
 
 
@@ -163,12 +167,25 @@ def _serialize_message(msg: Message) -> dict:
 @router.get("/digest/data", dependencies=[Depends(require_routine_token)])
 async def digest_data(
     type: str = Query(..., pattern="^(morning|evening)$"),
+    unanswered_only: bool = Query(
+        False,
+        description=(
+            "If true, return only chats whose LAST message is direction='in' — "
+            "i.e. the client wrote and we haven't replied yet. Used by the "
+            "Morning Manager draft-generator phase to focus on chats that need "
+            "a reply, regardless of digest priority."
+        ),
+    ),
     db: Session = Depends(get_db),
 ):
     if type == "morning":
         window_hours = 24
-        max_chats = 15
-        msgs_per_chat = 35
+        # Morning analysis context: 25 messages is enough to understand
+        # the situation per chat (per owner spec). Was 35 before.
+        msgs_per_chat = 25
+        # When generating drafts, surface every unanswered chat — not just the
+        # top 15 by recency. Owner reads them in TG and decides which to send.
+        max_chats = 100 if unanswered_only else 15
     else:
         window_hours = 48
         max_chats = 9999
@@ -177,14 +194,43 @@ async def digest_data(
     now = now_georgia()
     period_start = now - timedelta(hours=window_hours)
 
-    clients = (
+    q = (
         db.query(Client)
         .filter(Client.last_client_message_at.isnot(None))
         .filter(Client.last_client_message_at >= period_start)
         .filter(Client.is_archived == False)  # noqa: E712
-        .order_by(desc(Client.last_client_message_at))
-        .limit(max_chats)
-        .all()
+    )
+
+    if unanswered_only:
+        # Filter to clients whose latest message in the window is inbound.
+        # Subquery: per client, the timestamp of the most recent message of
+        # any kind. We then check that the message at that timestamp has
+        # direction='in'. Two-step (timestamp → direction) is simpler than
+        # window functions and works across all SQL backends.
+        from sqlalchemy import func, and_, exists
+
+        latest_msg = (
+            db.query(Message.client_id, func.max(Message.sent_at).label("max_sent"))
+            .group_by(Message.client_id)
+            .subquery()
+        )
+        q = (
+            q.join(latest_msg, Client.id == latest_msg.c.client_id)
+             .filter(
+                 exists().where(
+                     and_(
+                         Message.client_id == Client.id,
+                         Message.sent_at == latest_msg.c.max_sent,
+                         Message.direction == "in",
+                     )
+                 )
+             )
+        )
+
+    clients = (
+        q.order_by(desc(Client.last_client_message_at))
+         .limit(max_chats)
+         .all()
     )
 
     chats = []

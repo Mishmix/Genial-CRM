@@ -268,8 +268,23 @@ export default function AISettingsPage() {
           <PromptEditorSection
             promptKey="prompt_morning_digest"
             title="🌅 Morning Digest промпт"
-            subtitle="Утренний дайджест 09:00 — приоритизация активных чатов и заготовки ответов"
-            description="Системный промпт для AI-Manager. Routine читает его перед каждой генерацией, поэтому изменения вступают в силу с следующего запуска без редеплоя кода."
+            subtitle="Утренний дайджест 09:00 — структура digest + формат draft-блоков"
+            description="Описывает СТРУКТУРУ дайджеста (P0-P4, формат item-блока с черновиком в <pre>). Стиль и тактику самих черновиков сюда НЕ кладём — это в «🎯 Sales Doctrine» ниже, routine подключает её отдельно на фазе генерации drafts."
+            saving={saving}
+            saved={saved}
+            prompts={prompts}
+            drafts={drafts}
+            setDrafts={setDrafts}
+            onSave={handleSavePrompt}
+            onUndo={handleUndoPrompt}
+          />
+
+          {/* Sales Doctrine — applied as system prompt when generating drafts */}
+          <PromptEditorSection
+            promptKey="prompt_sales_doctrine"
+            title="🎯 Sales Doctrine промпт (для draft-генерации)"
+            subtitle="Полная доктрина продаж — голос, тактики, отработка возражений, iron rules, банлист фраз"
+            description="Routine подключает этот промпт ТОЛЬКО на фазе draft-генерации (не на сборке digest) — экономит контекст. Все правила переписки с клиентами живут здесь: тон, регистр (ты/ви/ru/uk), presumptive close, отработка «дорого / надо подумать / есть дизайнер», 100% предоплата, red flags, формат Direct Sales / Email JSON. Изменения в Mini App применяются со следующего routine-запуска без редеплоя."
             saving={saving}
             saved={saved}
             prompts={prompts}

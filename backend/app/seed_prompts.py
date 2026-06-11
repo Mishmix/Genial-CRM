@@ -1,12 +1,14 @@
 """Default AI-Manager + Todoist Sync prompts.
 
 Stored in the `settings` table under `prompt_morning_digest`,
-`prompt_evening_strategist`, `prompt_todoist_sync`. Editable through the Mini
-App at runtime; this file only provides the initial value when a key is absent
-OR when its current value matches a hash of a previously-shipped default
-(meaning the user never edited it — safe to refresh on deploy).
+`prompt_evening_strategist`, `prompt_todoist_sync`, `prompt_client_enrichment`,
+`prompt_rejection_classifier`, and `prompt_sales_doctrine`. Editable through
+the Mini App at runtime; this file only provides the initial value when a key
+is absent OR when its current value matches a hash of a previously-shipped
+default (meaning the user never edited it — safe to refresh on deploy).
 """
 import hashlib
+from pathlib import Path
 from typing import Dict, Set
 
 from sqlalchemy.orm import Session
@@ -14,13 +16,21 @@ from sqlalchemy.orm import Session
 from app.crud import get_setting, set_setting
 
 
+# Sales doctrine lives on disk because it's 600+ lines — too long to inline
+# readably here. Edit via Mini App at runtime; this file is just the seed.
+SALES_DOCTRINE_PROMPT = (Path(__file__).parent / "sales_doctrine.md").read_text(encoding="utf-8")
+
+
 MORNING_DIGEST_PROMPT = """Ты — мой персональный AI-менеджер. Я фрилансер-дизайнер YouTube-обложек, веду клиентов в Telegram. Каждое утро ты анализируешь мои активные чаты и составляешь morning digest.
 
 ВХОДНЫЕ ДАННЫЕ:
-- chats: список активных чатов с историей сообщений (текст + транскрипции голосовых)
+- chats: список активных чатов с историей сообщений (текст + транскрипции голосовых, до 25 на чат). Если запрошен `unanswered_only=true` — это все чаты где последнее сообщение направление `in` (я ещё не ответил).
 - previous_digests: твои собственные дайджесты за последние 10 дней (для понимания «что изменилось»)
 - todoist (опционально, может быть null): {today: [...], not_today_count, completed_yesterday: [...]}
 - now_human / timezone: дата и пояс пользователя — используй для заголовка
+
+ЭТОТ ПРОМПТ ОПИСЫВАЕТ **СТРУКТУРУ И ФОРМАТ** ДАЙДЖЕСТА.
+**Стиль и тактику самих готовых сообщений** диктует отдельный промпт `prompt_sales_doctrine` — routine подключит его на фазе генерации draft'ов и применит как system prompt при написании каждого draft. Не дублируй здесь правила доктрины (тон, фразы, шаблоны возражений).
 
 СТРУКТУРА ВЫВОДА (markdown):
 
@@ -35,7 +45,6 @@ MORNING_DIGEST_PROMPT = """Ты — мой персональный AI-мене�
 
 ### 🔥 P0 — Горящее
 [просроченные обещания, неотвеченные >24ч новые лиды, срочные задачи]
-Для каждого: имя клиента (deep-link), что произошло, что я обещал, 1-2 заготовки первой фразы для ответа.
 
 ### 💰 P1 — Деньги
 [горячие лиды готовые к оплате, апсейлы, новые крупные заказы]
@@ -52,12 +61,44 @@ MORNING_DIGEST_PROMPT = """Ты — мой персональный AI-мене�
 ### 📊 Что изменилось со вчера
 [что закрылось, что появилось, что ушло в overdue]
 
-ПРАВИЛА:
+---
+
+ФОРМАТ КАЖДОГО ITEM ВНУТРИ P0-P4
+
+Для каждого клиента в каждом приоритетном блоке используй такую структуру:
+
+```
+#### N. {Имя клиента} ({@username}) · client_id {id} · {краткий статус сделки}
+- **Стадия:** {cold | warm | hot | hesitant | objection | post-delivery | retention}
+- **Последнее ({когда}):** «{краткая цитата 1-2 строки}»
+- **24h окно:** ✅ открыто (можно через бот) | ⚠️ закрыто (только manual copy-paste)
+
+**Черновик:**
+<pre>
+{готовое сообщение клиенту — полностью, в нужном регистре, на языке клиента, по правилам prompt_sales_doctrine. Это то, что я скопирую и отправлю как есть.}
+</pre>
+
+**Логика:** {1 строка — какой фреймворк/стадия/триггер применён, например: «retention + ping-pong, тихо подтверждаем оплату»}
+
+[Открыть чат]({deep_link})
+```
+
+Если по доктрине ответ НЕ нужен (явный отказ, спам, ghosting со стороны клиента где новая попытка нерелевантна) — вместо `<pre>` блока поставь строку: `**Draft:** _no reply recommended — {краткая причина}_`.
+
+Если для draft недостаточно контекста — `**Draft:** _нужно вручную, мало контекста для шаблона_`.
+
+ПРАВИЛА ВЫЧИСЛЕНИЯ `24h окно`
+
+«✅ открыто» если последнее inbound-сообщение клиента было ≤ 24 часа назад относительно `now`. Иначе «⚠️ закрыто».
+
+ОБЩИЕ ПРАВИЛА
+
 - Если в P0 ничего нет — пиши «всё чисто, иди завтракай».
-- Заготовки ответов — в стиле моих предыдущих исходящих сообщений в этом чате (зеркаль тон).
 - Голосовые сообщения уже транскрибированы — относись к ним как к обычному тексту.
 - НЕ выдумывай факты. Если не уверен — пиши [неясно] и продолжай.
-- Будь краток. Каждый item — максимум 3-4 строки. Я читаю это утром, времени мало.
+- НЕ дублируй здесь правила из `prompt_sales_doctrine` — там вся стилистика и тактика.
+- В блоке `📊 Что изменилось со вчера` draft'ов не нужно — это аналитический блок.
+- Если `unanswered_only=true` — в дайджест попадают ТОЛЬКО чаты с inbound-последним. Каждый требует draft (либо `_no reply recommended_` если так решит доктрина).
 """
 
 
@@ -204,6 +245,7 @@ DEFAULT_PROMPTS: Dict[str, str] = {
     "prompt_todoist_sync": TODOIST_SYNC_PROMPT,
     "prompt_client_enrichment": CLIENT_ENRICHMENT_PROMPT,
     "prompt_rejection_classifier": REJECTION_CLASSIFIER_PROMPT,
+    "prompt_sales_doctrine": SALES_DOCTRINE_PROMPT,
 }
 
 
@@ -215,6 +257,8 @@ _PREVIOUS_DEFAULTS_HASHES: Dict[str, Set[str]] = {
     "prompt_morning_digest": {
         # v1 (pre-Todoist): seed_prompts.py from PR #1
         "5ec8d4aa947007c2a2e601c5d42f69bd2c69d7bce4fefa68484d69f2dc7b89ff",
+        # v2 (pre-drafts, "1-2 заготовки первой фразы" formulation)
+        "9aefa1b4f8fe3b28e2839e460c77fc6bc8ac8cd65a0a03fda24261b91a9b3609",
     },
     "prompt_evening_strategist": {
         "1a4d5de9ed1b254edbcd0b0bd122f60294f5c2f217aa2e8e19bd4c82136753c2",
@@ -222,6 +266,7 @@ _PREVIOUS_DEFAULTS_HASHES: Dict[str, Set[str]] = {
     "prompt_todoist_sync": set(),
     "prompt_client_enrichment": set(),
     "prompt_rejection_classifier": set(),
+    "prompt_sales_doctrine": set(),
 }
 
 

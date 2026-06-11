@@ -135,6 +135,9 @@ async def handle_business_connection(update: Update, context: ContextTypes.DEFAU
 
 VOICE_PLACEHOLDER = "[голосовое сообщение, расшифровывается…]"
 VOICE_FAILED_PLACEHOLDER = "[не удалось расшифровать]"
+PHOTO_PLACEHOLDER = "[фото]"
+VIDEO_PLACEHOLDER = "[видео]"
+DOCUMENT_PLACEHOLDER = "[документ]"
 
 
 async def _handle_voice_business_message(message):
@@ -210,6 +213,111 @@ async def _handle_voice_business_message(message):
     asyncio.create_task(_transcribe_and_save(message_id, voice_file_id))
 
 
+async def _handle_media_business_message(message, media_type: str):
+    """Save a non-voice non-text business message (photo / video / document).
+
+    Same minimal upsert/save pattern as voice, but without transcription. The
+    actual file content is NOT downloaded or stored yet — see BACKLOG.md v1.1
+    media handling for the full pipeline. The point of this handler is to make
+    sure the Message row exists so morning digest correctly sees that the
+    owner replied (with a photo) and doesn't false-flag the chat as overdue.
+
+    media_type ∈ {"photo", "video", "document"}.
+    """
+    user = message.from_user
+    business_connection_id = message.business_connection_id
+    settings = get_settings()
+
+    is_owner_message = False
+    if settings.admin_telegram_ids:
+        admin_ids = [int(x.strip()) for x in settings.admin_telegram_ids.split(",") if x.strip()]
+        is_owner_message = user.id in admin_ids
+
+    # Use caption as message text if present (clients sometimes send a photo
+    # with a comment, owner sometimes attaches "вот, как обсуждали"). Falls
+    # back to a placeholder so the digest has something to display.
+    caption = (message.caption or "").strip()
+    placeholder = {
+        "photo": PHOTO_PLACEHOLDER,
+        "video": VIDEO_PLACEHOLDER,
+        "document": DOCUMENT_PLACEHOLDER,
+    }.get(media_type, f"[{media_type}]")
+    text = caption or placeholder
+
+    db = SessionLocal()
+    try:
+        if is_owner_message:
+            chat = message.chat
+            client_data = ClientCreate(
+                telegram_user_id=chat.id,
+                username=getattr(chat, 'username', None),
+                first_name=getattr(chat, 'first_name', None) or "Unknown",
+                last_name=getattr(chat, 'last_name', None),
+                language_code=None,
+                business_connection_id=business_connection_id,
+            )
+        else:
+            client_data = ClientCreate(
+                telegram_user_id=user.id,
+                username=user.username,
+                first_name=user.first_name or "Unknown",
+                last_name=user.last_name,
+                language_code=user.language_code,
+                business_connection_id=business_connection_id,
+            )
+        client = upsert_client(db, client_data)
+        if client.is_archived and not is_owner_message:
+            client.is_archived = False
+            client.archived_at = None
+            db.commit()
+
+        conversation = get_or_create_conversation(db, client, business_connection_id)
+
+        new_msg = Message(
+            client_id=client.id,
+            conversation_id=conversation.id,
+            direction="out" if is_owner_message else "in",
+            text=text,
+            message_type=media_type,
+            telegram_message_id=message.message_id,
+            sent_at=now_georgia(),
+        )
+        db.add(new_msg)
+
+        # Mirror the side-effects voice handler uses, scoped to the inbound case:
+        if not is_owner_message:
+            conversation.unread_count = (conversation.unread_count or 0) + 1
+            conversation.updated_at = now_georgia()
+        else:
+            # Owner replied — flip conversation flags so downstream signals
+            # (digest priorities, Sheets sync) see this as an answered chat.
+            conversation.owner_replied = True
+            conversation.owner_replied_at = now_georgia()
+            client.owner_replied = True
+            client.last_auto_reply_at = now_georgia()
+
+        db.commit()
+        db.refresh(new_msg)
+        log_print(f"Media message stored: id={new_msg.id} type={media_type} dir={new_msg.direction} caption={'yes' if caption else 'no'}")
+
+        try:
+            await broadcast_update("message_created", {
+                "client_id": client.id,
+                "conversation_id": conversation.id,
+                "message": {
+                    "id": new_msg.id,
+                    "text": new_msg.text,
+                    "message_type": new_msg.message_type,
+                    "direction": new_msg.direction,
+                    "sent_at": new_msg.sent_at.isoformat() if new_msg.sent_at else None,
+                },
+            })
+        except Exception as e:
+            log_print(f"WS broadcast failed after media message: {e}")
+    finally:
+        db.close()
+
+
 async def _transcribe_and_save(message_id: int, voice_file_id: str):
     """Download voice file from Telegram, transcribe via Groq Whisper, persist."""
     from app.telegram.bot import get_bot
@@ -276,9 +384,24 @@ async def handle_business_message(update: Update, context: ContextTypes.DEFAULT_
         await _handle_voice_business_message(message)
         return
 
-    # Skip other non-text messages (photo, video, document — out of scope for now)
+    # Photo / video / document — log via media handler so morning digest knows
+    # the chat had activity (owner sending a thumbnail photo is the canonical
+    # "I answered" event for designer's reply pattern). Caption preserved if
+    # present; otherwise a placeholder is stored. File content not downloaded
+    # yet — see BACKLOG.md v1.1.
+    if message.photo and not message.text:
+        await _handle_media_business_message(message, "photo")
+        return
+    if message.video and not message.text:
+        await _handle_media_business_message(message, "video")
+        return
+    if message.document and not message.text:
+        await _handle_media_business_message(message, "document")
+        return
+
+    # Skip any remaining non-text payloads (sticker, location, contact, …).
     if not message.text:
-        log_print(f"Skipping non-text message from user {user.id}")
+        log_print(f"Skipping non-text message from user {user.id} (no photo/video/document/voice match)")
         return
     
     log_print(f"Message text: {message.text[:100]}...")
